@@ -7,7 +7,7 @@ const CATEGORIES = {
     id: 'instrument',
     name: 'เครื่องมือ / เครื่องวิเคราะห์',
     nameShort: 'เครื่องมือ',
-    icon: '🔬',
+    icon: '',
     color: '#1565C0',
     bgColor: '#E3F2FD',
     description: 'เครื่องมือวิเคราะห์และทดสอบสำหรับงานวิจัยและการเรียนการสอน',
@@ -22,7 +22,7 @@ const CATEGORIES = {
     id: 'glassware',
     name: 'เครื่องแก้ว',
     nameShort: 'เครื่องแก้ว',
-    icon: '🧪',
+    icon: '',
     color: '#6A1B9A',
     bgColor: '#F3E5F5',
     description: 'อุปกรณ์เครื่องแก้วสำหรับการทดลองในห้องปฏิบัติการ',
@@ -34,7 +34,7 @@ const CATEGORIES = {
     id: 'scientific',
     name: 'อุปกรณ์วิทยาศาสตร์',
     nameShort: 'อุปกรณ์วิทย์',
-    icon: '⚗️',
+    icon: '',
     color: '#2E7D32',
     bgColor: '#E8F5E9',
     description: 'อุปกรณ์วิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
@@ -766,10 +766,10 @@ const WORKFLOWS = {
     id: 'instrument',
     name: 'เครื่องมือ/เครื่องวิเคราะห์',
     steps: [
-      { key: 'submitted', label: 'นักศึกษาจอง', icon: '📝' },
-      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '👨‍🏫' },
-      { key: 'depthead_approved', label: 'หัวหน้าภาค อนุมัติ', icon: '🏛️' },
-      { key: 'completed', label: 'เจ้าหน้าที่รับทราบ', icon: '✅' }
+      { key: 'submitted', label: 'นักศึกษาจอง', icon: '' },
+      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '' },
+      { key: 'depthead_approved', label: 'หัวหน้าภาค อนุมัติ', icon: '' },
+      { key: 'completed', label: 'เจ้าหน้าที่รับทราบ', icon: '' }
     ],
     // Who needs to approve
     approvers: ['advisor', 'dept_head'],
@@ -782,10 +782,10 @@ const WORKFLOWS = {
     id: 'glassware_general',
     name: 'เครื่องแก้ว (ทั่วไป)',
     steps: [
-      { key: 'submitted', label: 'นักศึกษาจอง', icon: '📝' },
-      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '👨‍🏫' },
-      { key: 'staff_approved', label: 'พี่พิสันดิ์ อนุมัติ', icon: '👤' },
-      { key: 'completed', label: 'รับทราบ', icon: '✅' }
+      { key: 'submitted', label: 'นักศึกษาจอง', icon: '' },
+      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '' },
+      { key: 'staff_approved', label: 'พี่พิสันดิ์ อนุมัติ', icon: '' },
+      { key: 'completed', label: 'รับทราบ', icon: '' }
     ],
     approvers: ['advisor', 'lab_officer_1'],
     viewers: ['dept_head', 'lab_officer_2']
@@ -795,10 +795,10 @@ const WORKFLOWS = {
     id: 'glassware_team',
     name: 'เครื่องแก้ว TEAM PROJECT 2',
     steps: [
-      { key: 'submitted', label: 'นักศึกษาจอง', icon: '📝' },
-      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '👨‍🏫' },
-      { key: 'staff_approved', label: 'พี่พริก/พี่ตุ้ย อนุมัติ', icon: '👥' },
-      { key: 'completed', label: 'รับทราบ', icon: '✅' }
+      { key: 'submitted', label: 'นักศึกษาจอง', icon: '' },
+      { key: 'advisor_approved', label: 'อ.ที่ปรึกษา อนุมัติ', icon: '' },
+      { key: 'staff_approved', label: 'พี่พริก/พี่ตุ้ย อนุมัติ', icon: '' },
+      { key: 'completed', label: 'รับทราบ', icon: '' }
     ],
     approvers: ['advisor', 'team_project_officer_1', 'team_project_officer_2'],
     viewers: ['dept_head', 'lab_officer_2', 'senior_officer']

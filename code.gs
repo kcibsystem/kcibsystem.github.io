@@ -1,7 +1,7 @@
 // ============================================================
 // KCIB Backend — Google Apps Script
 // Spreadsheet: 18nu0jZcDyyEJGfylpazITc5lK2gdb0u5rrmESQnPVZ4
-// 3-Step Approval: ADVISORS → HEAD_DEPT → STAFF_FLOOR_1 / STAFF_PROJECT_2
+// Approval: ADVISORS → HEAD_DEPT. Staff acknowledge approved bookings.
 //
 // Deploy: Extensions > Apps Script > Deploy > New deployment
 //   Execute as: Me | Who has access: Anyone
@@ -87,6 +87,7 @@ function doPost(e) {
       case "cancelBooking":  return jsonOut(cancelBooking(data));
       case "approveBooking": return jsonOut(approveBooking(data));
       case "rejectBooking":  return jsonOut(rejectBooking(data));
+      case "acknowledgeBooking": return jsonOut(acknowledgeBooking(data));
       case "saveProfile":    return jsonOut(saveProfile(data));
       default:               return jsonOut({ error: "Invalid action: " + data.action });
     }
@@ -146,8 +147,10 @@ function getStaffConfig() {
     var emails = String(row[1] || "").split(",").map(function(e) { return e.trim(); }).filter(Boolean);
     var names  = String(row[2] || "").split(",").map(function(n) { return n.trim(); }).filter(Boolean);
     if (!role) return;
-    config[role] = emails.map(function(email, i) {
-      return { email: email, name: names[i] || email };
+    config[role] = (config[role] || []).concat(emails.map(function(email, i) {
+      return { email: email.toLowerCase(), name: names[i] || email };
+    })).filter(function(member, index, all) {
+      return all.findIndex(function(other) { return other.email === member.email; }) === index;
     });
   });
   return config;
@@ -166,72 +169,58 @@ function getAllBookings() {
   return sheetToObjects(SHEETS.BOOKINGS);
 }
 
-// ==================== SUBMIT BOOKING ====================
+// ==================== BOOKING VALIDATION ====================
+function withBookingLock_(operation) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { return operation(); } finally { lock.releaseLock(); }
+}
+
+function inventoryCategory_(item) {
+  const category = String(item.Category || item.category || "").toLowerCase();
+  if (/glass|แก้ว/.test(category)) return "glassware";
+  if (/chemical|สารเคมี/.test(category)) return "chemical";
+  if (/scientific|วิทยาศาสตร์|อุปกรณ์/.test(category)) return "scientific";
+  return "instrument";
+}
+
 function submitBooking(data) {
-  const sheet = sh_(SHEETS.BOOKINGS);
-  if (!sheet) throw new Error("Sheet 'ALlBooking' not found");
-
-  // Check for double-booking: count active overlapping bookings vs MaxQuantity
-  if (data.itemId && data.start && data.end) {
-    var invItems = sheetToObjects(SHEETS.INVENTORY);
-    var invItem  = invItems.filter(function(i) {
-      return String(i.ID || i.Id || i.id || i._row) === String(data.itemId);
-    })[0];
-    var maxQty   = invItem ? (parseInt(invItem.MaxQuantity) || 1) : 1;
-
-    var newStart = new Date(data.start);
-    var newEnd   = new Date(data.end);
-    var activeStatuses = [STATUS.P1, STATUS.P2, STATUS.P3, STATUS.APPROVED];
-
-    var conflicting = sheetToObjects(SHEETS.BOOKINGS).filter(function(b) {
-      if (String(b.ItemID) !== String(data.itemId)) return false;
-      if (activeStatuses.indexOf(String(b.Status)) === -1) return false;
-      var bStart = new Date(b.Start);
-      var bEnd   = new Date(b.End);
-      return newStart < bEnd && newEnd > bStart;
+  return withBookingLock_(function() {
+    const sheet = sh_(SHEETS.BOOKINGS);
+    if (!sheet) throw new Error("Sheet 'ALlBooking' not found");
+    const item = getInventory().find(function(item) {
+      return String(item.ID || item.Id || item.id || item.ItemID || item._row) === String(data.itemId);
     });
-
-    if (conflicting.length >= maxQty) {
-      return {
-        success: false,
-        error: "เครื่องนี้ถูกจองเต็มแล้วในช่วงเวลาที่เลือก (" + conflicting.length + "/" + maxQty + " เครื่อง)"
-      };
-    }
-  }
-
-  const staffCfg      = getStaffConfig();
-  const advisors      = staffCfg["ADVISORS"] || [];
-  const chosenAdvisor = advisors.filter(function(a) { return a.email === data.advisorEmail; })[0] || {};
-  const advisorEmail  = chosenAdvisor.email || data.advisorEmail || "";
-  const advisorName   = chosenAdvisor.name  || advisorEmail;
-
-  const bookingId = "BK" + Date.now();
-  const now       = new Date();
-
-  const newRow = [
-    now,
-    bookingId,
-    data.email                                    || "",
-    data.name                                     || "",
-    data.category                                 || "",
-    data.itemName                                 || "",
-    data.itemId                                   || "",
-    data.course                                   || "",
-    data.quantity                                 || "",
-    data.start ? new Date(data.start) : "",
-    data.end   ? new Date(data.end)   : "",
-    data.note                                     || "",
-    advisorEmail,
-    STATUS.P1,
-    advisorName,
-    data.studentId      || "",
-    data.educationLevel || ""
-  ];
-
-  sheet.appendRow(newRow);
-  applyRowFormat_(sheet, sheet.getLastRow());
-
-  return { success: true, bookingId: bookingId };
+    if (!item) return { success: false, error: "ไม่พบอุปกรณ์ในคลัง" };
+    const quantity = data.quantity === "" || data.quantity == null ? 1 : Number(data.quantity);
+    const holidays = getHolidays().map(function(day) { return day.date; });
+    const invalid = BookingRules.validate(item, data.start || "", data.end || "", quantity, holidays);
+    const messages = {
+      advance: "ต้องจองล่วงหน้าอย่างน้อย 3 วันทำการทุกหมวด โดยไม่นับเสาร์ อาทิตย์ และวันหยุด",
+      date: "กรุณาเลือกวันทำการภายใน 180 วัน",
+      time: "กรุณาเลือกเวลารายชั่วโมงระหว่าง 09:00–16:00 น.",
+      range: "วันและเวลาสิ้นสุดต้องอยู่หลังวันและเวลาเริ่ม",
+      duration: "รายการนี้เลือกได้เฉพาะช่วงเวลา 1, 2 หรือ 3 ชั่วโมงในวันเดียวกัน",
+      quantity: "จำนวนที่ขอจองต้องเป็นจำนวนเต็มตั้งแต่ 1 และไม่เกินจำนวนในคลัง"
+    };
+    if (invalid) return { success: false, error: messages[invalid] };
+    const remaining = BookingRules.availableQuantity(data.itemId, data.start, data.end,
+      getAllBookings(), Number(item.MaxQuantity || item.maxQty));
+    if (quantity > remaining) return { success: false, error: "อุปกรณ์ว่างไม่พอในช่วงเวลานี้ เหลือ " + remaining };
+    const advisor = (getStaffConfig().ADVISORS || []).find(function(person) {
+      return person.email.toLowerCase() === String(data.advisorEmail || "").trim().toLowerCase();
+    });
+    if (!advisor) return { success: false, error: "กรุณาเลือกอาจารย์ที่ปรึกษาจากรายการ" };
+    const bookingId = "BK" + Utilities.getUuid();
+    sheet.appendRow([
+      new Date(), bookingId, data.email || "", data.name || "", inventoryCategory_(item),
+      item.ItemName || item.Name || item.name || "", String(data.itemId), data.course || "", quantity,
+      new Date(BookingRules.timestamp(data.start)), new Date(BookingRules.timestamp(data.end)), data.note || "",
+      advisor.email, STATUS.P1, advisor.name, data.studentId || "", data.educationLevel || ""
+    ]);
+    applyRowFormat_(sheet, sheet.getLastRow());
+    return { success: true, bookingId: bookingId };
+  });
 }
 
 // ==================== CANCEL BOOKING ====================
@@ -260,64 +249,72 @@ function cancelBooking(data) {
   return { success: true };
 }
 
-// ==================== APPROVE BOOKING ====================
+// ==================== APPROVAL / STAFF ACKNOWLEDGEMENT ====================
+function verifiedActor_(data) {
+  if (!data.idToken) throw new Error("กรุณาเข้าสู่ระบบอีกครั้ง");
+  let response;
+  try {
+    response = UrlFetchApp.fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(data.idToken), { muteHttpExceptions: true });
+  } catch (_) {
+    throw new Error("ไม่สามารถยืนยันบัญชี Google ได้ กรุณาลองอีกครั้ง");
+  }
+  if (response.getResponseCode() !== 200) throw new Error("ไม่สามารถยืนยันบัญชี Google ได้ กรุณาเข้าสู่ระบบอีกครั้ง");
+  const identity = JSON.parse(response.getContentText());
+  const clientId = "334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com";
+  if (identity.aud !== clientId || !["accounts.google.com", "https://accounts.google.com"].includes(identity.iss)
+      || Number(identity.exp) * 1000 <= Date.now() || String(identity.email_verified) !== "true" || !identity.email) {
+    throw new Error("บัญชี Google ไม่ถูกต้องหรือหมดอายุ");
+  }
+  return { email: identity.email.toLowerCase().trim(), role: data.activeRole };
+}
+
+function bookingActionContext_(data) {
+  const actor = verifiedActor_(data);
+  const booking = getAllBookings().find(function(row) { return String(row.BookingID) === String(data.bookingId); });
+  if (!booking) throw new Error("ไม่พบรายการจอง");
+  return { actor: actor, booking: booking, config: getStaffConfig(), sheet: sh_(SHEETS.BOOKINGS) };
+}
+
+function setBookingValue_(sheet, row, name, value) {
+  const headers = getHeaders_(SHEETS.BOOKINGS);
+  let column = headers.indexOf(name) + 1;
+  if (!column) {
+    column = headers.length + 1;
+    sheet.getRange(1, column).setValue(name);
+  }
+  sheet.getRange(row, column).setValue(value);
+}
+
 function approveBooking(data) {
-  const sheet = sh_(SHEETS.BOOKINGS);
-  if (!sheet) return { success: false, error: "Sheet not found" };
-
-  const headers  = getHeaders_(SHEETS.BOOKINGS);
-  const allData  = sheet.getDataRange().getValues();
-  const bidCol   = colIdx_(headers, "BookingID");
-  const catCol   = colIdx_(headers, "Category");
-  const crsCol   = colIdx_(headers, "Course");
-  const emCol    = colIdx_(headers, "Email");
-  const nmCol    = colIdx_(headers, "Name");
-  const stCol    = colIdx_(headers, "Status") + 1;
-  const caCol    = colIdx_(headers, "CurrentApproverName") + 1;
-
-  var rowNo = -1;
-  for (var i = 1; i < allData.length; i++) {
-    if (String(allData[i][bidCol]) === data.bookingId) { rowNo = i + 1; break; }
-  }
-  if (rowNo === -1) return { success: false, error: "Booking not found" };
-
-  const rowData       = allData[rowNo - 1];
-  const currentStatus = String(sheet.getRange(rowNo, colIdx_(headers, "Status") + 1).getValue()).trim();
-  const category      = String(rowData[catCol] || "");
-  const course        = String(rowData[crsCol]  || "");
-  const staffCfg      = getStaffConfig();
-  const isTP2         = /team.?project.?2/i.test(course);
-  const now           = new Date().toISOString();
-
-  if (currentStatus === STATUS.P1) {
-    // ADVISORS approved → advance to HEAD_DEPT (P2)
-    const headDept = staffCfg["HEAD_DEPT"] || [];
-    sheet.getRange(rowNo, stCol).setValue(STATUS.P2);
-    sheet.getRange(rowNo, caCol).setValue(
-      headDept.map(function(a) { return a.name; }).join(", ") || "หัวหน้าภาควิชา"
-    );
+  return withBookingLock_(function() {
+    const context = bookingActionContext_(data);
+    const b = context.booking, actor = context.actor;
+    if (!BookingRules.canApprove(b, actor.email, actor.role, context.config)) {
+      return { success: false, error: "บทบาทนี้ไม่มีสิทธิ์อนุมัติรายการนี้" };
+    }
+    const next = b.Status === STATUS.P1 ? STATUS.P2 : STATUS.APPROVED;
+    const name = next === STATUS.P2
+      ? (context.config.HEAD_DEPT || []).map(function(person) { return person.name; }).join(", ") || "หัวหน้าภาควิชา"
+      : "อนุมัติแล้ว รอเจ้าหน้าที่รับทราบ";
+    setBookingValue_(context.sheet, b._row, "Status", next);
+    setBookingValue_(context.sheet, b._row, "CurrentApproverName", name);
     return { success: true };
-  }
+  });
+}
 
-  if (currentStatus === STATUS.P2) {
-    // HEAD_DEPT approved → advance to floor staff (P3)
-    const nextRole  = isTP2 ? "STAFF_PROJECT_2" : "STAFF_FLOOR_1";
-    const nextStaff = staffCfg[nextRole] || [];
-    sheet.getRange(rowNo, stCol).setValue(STATUS.P3);
-    sheet.getRange(rowNo, caCol).setValue(
-      nextStaff.map(function(a) { return a.name; }).join(", ") || "เจ้าหน้าที่"
-    );
+function acknowledgeBooking(data) {
+  return withBookingLock_(function() {
+    const context = bookingActionContext_(data);
+    const b = context.booking, actor = context.actor;
+    if (!BookingRules.canAcknowledge(b, actor.email, actor.role, context.config)) {
+      return { success: false, error: "ไม่สามารถรับทราบรายการนี้ได้ หรือรับทราบแล้ว" };
+    }
+    setBookingValue_(context.sheet, b._row, "StaffAcknowledgedAt", new Date());
+    setBookingValue_(context.sheet, b._row, "StaffAcknowledgedBy", actor.email);
+    setBookingValue_(context.sheet, b._row, "Status", STATUS.APPROVED);
+    setBookingValue_(context.sheet, b._row, "CurrentApproverName", "เจ้าหน้าที่รับทราบแล้ว");
     return { success: true };
-  }
-
-  if (currentStatus === STATUS.P3) {
-    // Floor staff approved → APPROVED
-    sheet.getRange(rowNo, stCol).setValue(STATUS.APPROVED);
-    sheet.getRange(rowNo, caCol).setValue("อนุมัติแล้ว");
-    return { success: true };
-  }
-
-  return { success: false, error: "ไม่สามารถอนุมัติสถานะนี้ได้: " + currentStatus };
+  });
 }
 
 // ==================== USER PROFILES ====================
@@ -366,7 +363,7 @@ function saveProfile(data) {
 const STATUS_LABEL = {
   "รอที่ปรึกษาอนุมัติ": "รออาจารย์ที่ปรึกษาอนุมัติ",
   "รออนุมัติขั้นที่ 2":  "รอหัวหน้าภาควิชาอนุมัติ",
-  "รออนุมัติขั้นที่ 3":  "รอเจ้าหน้าที่อนุมัติ"
+  "รออนุมัติขั้นที่ 3":  "รอเจ้าหน้าที่รับทราบ"
 };
 
 // Order for grouping in message
@@ -400,7 +397,7 @@ function sendDailyLineReport() {
   });
 
   var today = Utilities.formatDate(new Date(), "Asia/Bangkok", "d MMM");
-  var lines  = ["📋 KCIB — รายการจองรออนุมัติ (" + today + ")\n"];
+  var lines  = [" KCIB — รายการจองรอดำเนินการ (" + today + ")\n"];
 
   STATUS_ORDER.forEach(function(s) {
     var items = groups[s];
@@ -415,7 +412,7 @@ function sendDailyLineReport() {
     lines.push(""); // blank line between groups
   });
 
-  lines.push("🔗 " + KCIB_SITE_URL);
+  lines.push(" " + KCIB_SITE_URL);
 
   var message = lines.join("\n").trim();
 
@@ -440,31 +437,16 @@ function testLineReport() {
 
 // ==================== REJECT BOOKING ====================
 function rejectBooking(data) {
-  const sheet = sh_(SHEETS.BOOKINGS);
-  if (!sheet) return { success: false, error: "Sheet not found" };
-
-  const headers  = getHeaders_(SHEETS.BOOKINGS);
-  const allData  = sheet.getDataRange().getValues();
-  const bidCol   = colIdx_(headers, "BookingID");
-  const emCol    = colIdx_(headers, "Email");
-  const nmCol    = colIdx_(headers, "Name");
-  const stCol    = colIdx_(headers, "Status") + 1;
-  const caCol    = colIdx_(headers, "CurrentApproverName") + 1;
-
-  var rowNo = -1;
-  for (var i = 1; i < allData.length; i++) {
-    if (String(allData[i][bidCol]) === data.bookingId) { rowNo = i + 1; break; }
-  }
-  if (rowNo === -1) return { success: false, error: "Booking not found" };
-
-  const rowData      = allData[rowNo - 1];
-  const studentEmail = String(rowData[emCol] || "");
-  const studentName  = String(rowData[nmCol]  || "");
-
-  sheet.getRange(rowNo, stCol).setValue(STATUS.REJECTED);
-  sheet.getRange(rowNo, caCol).setValue("ปฏิเสธ");
-
-  return { success: true };
+  return withBookingLock_(function() {
+    const context = bookingActionContext_(data);
+    const b = context.booking, actor = context.actor;
+    if (!BookingRules.canApprove(b, actor.email, actor.role, context.config)) {
+      return { success: false, error: "บทบาทนี้ไม่มีสิทธิ์ปฏิเสธรายการนี้" };
+    }
+    setBookingValue_(context.sheet, b._row, "Status", STATUS.REJECTED);
+    setBookingValue_(context.sheet, b._row, "CurrentApproverName", "ปฏิเสธ");
+    return { success: true };
+  });
 }
 
 // ==================== SHEET FORMATTING ====================
@@ -487,7 +469,7 @@ const THEME = {
 };
 
 const DATE_FORMAT = "dd/MM/yyyy HH:mm";
-const DATE_COLS   = ["Timestamp", "Start", "End", "UpdatedAt"];
+const DATE_COLS   = ["Timestamp", "Start", "End", "UpdatedAt", "StaffAcknowledgedAt"];
 
 function formatAllSheets() {
   formatSheet_(SHEETS.BOOKINGS,  { statusCol: "Status" });

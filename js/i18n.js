@@ -4,6 +4,19 @@
 
 const TRANSLATIONS = {
   th: {
+    'role.switch': "บทบาทที่ใช้งาน",
+    'form.duration': "ระยะเวลาจอง",
+    'form.customDuration': "ระบุวันและเวลาเอง",
+    'slot.3h': "(3 ชม.)",
+    'dash.acknowledge': "รับทราบ",
+    'dash.acknowledged': "เจ้าหน้าที่รับทราบแล้ว",
+    'dash.awaitingAck': "รอเจ้าหน้าที่รับทราบ การจองได้รับอนุมัติแล้ว",
+    'validation.advance': "ต้องจองล่วงหน้าอย่างน้อย 3 วันทำการ โดยไม่นับเสาร์–อาทิตย์และวันหยุด",
+    'validation.date': "กรุณาเลือกวันทำการภายใน 180 วัน",
+    'validation.time': "กรุณาเลือกเวลารายชั่วโมงระหว่าง 09:00–16:00 น.",
+    'validation.range': "วันและเวลาสิ้นสุดต้องอยู่หลังวันและเวลาเริ่ม",
+    'validation.duration': "รายการนี้เลือกได้เฉพาะช่วงเวลา 1, 2 หรือ 3 ชั่วโมงในวันเดียวกัน",
+    'validation.quantity': "จำนวนต้องเป็นจำนวนเต็มตั้งแต่ 1 และไม่เกินจำนวนในคลัง",
     // Nav
     'nav.home':       'หน้าแรก',
     'nav.instrument': 'เครื่องมือ',
@@ -12,7 +25,7 @@ const TRANSLATIONS = {
     'nav.chemical':   'สารเคมี',
     'nav.myBookings': 'การจองของฉัน',
     'nav.dashboard':  'แดชบอร์ด',
-    'nav.bookingList':'📋 รายการจอง',
+    'nav.bookingList': 'รายการจอง',
     // Hero
     'hero.eyebrow':   'KMITL ChE · ระบบจองอุปกรณ์',
     'hero.title1':    'ระบบจองเครื่องมือ',
@@ -21,7 +34,7 @@ const TRANSLATIONS = {
     'hero.cta':       'ดูเครื่องมือทั้งหมด',
     'hero.welcome':   'ยินดีต้อนรับ',
     // Notice
-    'notice': '⚠️ การจองเครื่องมือ/เครื่องวิเคราะห์ต้องล่วงหน้า <strong>3 วันทำการ</strong> &nbsp;|&nbsp; จันทร์–ศุกร์ 09:00–16:00 น. เท่านั้น',
+    'notice': "ทุกหมวดต้องจองล่วงหน้า <strong>3 วันทำการ</strong> โดยไม่นับเสาร์–อาทิตย์และวันหยุด | เวลาใช้งาน 09:00–16:00 น.",
     // Stats
     'stat.instrument': 'เครื่องมือ/วิเคราะห์',
     'stat.glassware':  'เครื่องแก้ว',
@@ -45,7 +58,7 @@ const TRANSLATIONS = {
     'step3.title': 'กรอกใบจอง',
     'step3.desc':  'ระบุวันเวลา วิชา/โครงการ และเลือกอาจารย์ที่ปรึกษา',
     'step4.title': 'รอการอนุมัติ',
-    'step4.desc':  'รอการอนุมัติผ่านอีเมล ติดตามสถานะได้ที่ "การจองของฉัน"',
+    'step4.desc':  "อาจารย์ที่ปรึกษาและหัวหน้าภาคอนุมัติ จากนั้นเจ้าหน้าที่รับทราบ ติดตามได้ที่การจองของฉัน",
     // Equipment page
     'equip.back':        '← กลับ',
     'equip.search':      'ค้นหา...',
@@ -54,7 +67,7 @@ const TRANSLATIONS = {
     'equip.available':   'พร้อมใช้',
     'equip.unavailable': 'ไม่ว่าง',
     'equip.addToCart':   '+ เพิ่มลงรายการ',
-    'equip.inCart':      '✓ ในรายการ',
+    'equip.inCart':      "อยู่ในรายการ",
     'equip.inStock':     'มีในคลัง',
     'equip.filterAll':   'ทั้งหมด',
     'equip.unit.timed':  'เครื่อง',
@@ -65,8 +78,8 @@ const TRANSLATIONS = {
     'cart.clear':   'ล้างทั้งหมด',
     'cart.remove':  'ลบ',
     // My Bookings
-    'mybook.title':       '📋 การจองของฉัน',
-    'mybook.refresh':     '↻ รีเฟรช',
+    'mybook.title': 'การจองของฉัน',
+    'mybook.refresh':     "รีเฟรช",
     'mybook.loginFirst':  'กรุณาเข้าสู่ระบบก่อน',
     'mybook.loginDesc':   'เข้าสู่ระบบด้วยบัญชี Google ของสถาบัน',
     'mybook.tab.all':     'ทั้งหมด',
@@ -79,13 +92,13 @@ const TRANSLATIONS = {
     'mybook.loadFail':    'โหลดไม่สำเร็จ',
     'mybook.cancel':      'ยกเลิกการจอง',
     // Dashboard
-    'dash.title':       '📊 แดชบอร์ด',
+    'dash.title': 'แดชบอร์ด',
     'dash.viewSheets':  'ดูข้อมูลการจอง (Sheets)',
-    'dash.refresh':     '↻ รีเฟรช',
+    'dash.refresh':     "รีเฟรช",
     'dash.noAccess':    'ไม่มีสิทธิ์เข้าถึง',
     'dash.noAccessDesc':'เฉพาะเจ้าหน้าที่และอาจารย์เท่านั้น',
-    'dash.tab.pending': '⏳ รอฉันอนุมัติ',
-    'dash.tab.all':     '📋 ทั้งหมด',
+    'dash.tab.pending': "รอฉันดำเนินการ",
+    'dash.tab.all': 'ทั้งหมด',
     'dash.stat.total':  'รายการทั้งหมด',
     'dash.stat.pending':'รอดำเนินการ',
     'dash.stat.approved':'อนุมัติแล้ว',
@@ -131,12 +144,12 @@ const TRANSLATIONS = {
     'menu.logout':       'ออกจากระบบ',
     // Notifications
     'notif.btnTitle': 'การแจ้งเตือน',
-    'notif.header':   '🔔 การแจ้งเตือน',
+    'notif.header': 'การแจ้งเตือน',
     'notif.markRead': 'อ่านทั้งหมด',
     'notif.empty':    'ไม่มีการแจ้งเตือนใหม่',
     // Toast messages
     'toast.loadFail':        'โหลดข้อมูลไม่สำเร็จ',
-    'toast.loadFailHint':    'กรุณาตรวจสอบ SCRIPT_URL ในไฟล์ index.html',
+    'toast.loadFailHint':    "กรุณาลองโหลดหน้าเว็บอีกครั้ง",
     'toast.credError':       'เกิดข้อผิดพลาด',
     'toast.credErrorDesc':   'ไม่สามารถตรวจสอบ credential ได้',
     'toast.loginSuccess':    'เข้าสู่ระบบสำเร็จ',
@@ -146,7 +159,7 @@ const TRANSLATIONS = {
     'toast.loginHint':       'คลิกปุ่ม Sign in with Google บน Navbar',
     'toast.alreadyInCart':   'อยู่ในรายการจองแล้ว',
     'toast.addedToCart':     'เพิ่มลงรายการจองแล้ว',
-    'toast.addedHint':       'ดูรายการที่ปุ่ม "📋 รายการจอง"',
+    'toast.addedHint':       'ดูรายการที่ปุ่ม " รายการจอง"',
     'toast.cartEmpty':       'รายการจองว่างอยู่',
     'toast.addFirst':        'เพิ่มอุปกรณ์จากหน้ารายการก่อน',
     'toast.invalidDate':     'วันที่เลือกไม่ถูกต้อง',
@@ -186,7 +199,7 @@ const TRANSLATIONS = {
     'form.inStock':     'มีในคลัง:',
     'form.hint3days':   'ล่วงหน้าอย่างน้อย 3 วันทำการ • จ–ศ เท่านั้น',
     'form.hintWeekday': 'จ–ศ เท่านั้น',
-    'form.radBadge':    '📅 จองข้ามวันได้',
+    'form.radBadge':    "ระบุวัน/เวลา",
     'form.qty.ph':      'จำนวน',
     // Cart modal
     'cart.modal.title':    'รายการจอง',
@@ -200,9 +213,9 @@ const TRANSLATIONS = {
     'cart.note.label':     'หมายเหตุ (ถ้ามี)',
     'cart.note.ph':        'รายละเอียดเพิ่มเติม...',
     'cart.remove':         'ลบ ✕',
-    'cart.clearBtn':       '🗑️ ล้างรายการ',
+    'cart.clearBtn': 'ล้างรายการ',
     'cart.cancelBtn':      'ยกเลิก',
-    'cart.confirmBtn':     '✅ ยืนยันการจอง',
+    'cart.confirmBtn': 'ยืนยันการจอง',
     // Course options
     'course.general':       'ทั่วไป',
     'course.labChE':        'ปฏิบัติการวิศวกรรมเคมี',
@@ -220,7 +233,7 @@ const TRANSLATIONS = {
     // Booking status labels (raw data → display)
     'bk.status.p1':  'รอที่ปรึกษาอนุมัติ',
     'bk.status.p2':  'รออนุมัติขั้นที่ 2',
-    'bk.status.p3':  'รออนุมัติขั้นที่ 3',
+    'bk.status.p3':  "อนุมัติแล้ว รอเจ้าหน้าที่รับทราบ",
     'bk.status.ok':  'อนุมัติแล้ว',
     'bk.status.rej': 'ปฏิเสธ',
     'bk.status.can': 'ยกเลิก',
@@ -232,11 +245,11 @@ const TRANSLATIONS = {
     'bk.step.done':    'เสร็จสิ้น',
     // Dashboard
     'dash.pending.none':    'ไม่มีรายการที่รอดำเนินการ',
-    'dash.pending.waiting': 'รอการอนุมัติจากคุณ',
+    'dash.pending.waiting': "รายการรอดำเนินการ",
     'dash.approveAll':      'อนุมัติทั้งหมด',
     'dash.rejectAll':       'ปฏิเสธทั้งหมด',
-    'dash.approve':         '✅ อนุมัติ',
-    'dash.reject':          '❌ ปฏิเสธ',
+    'dash.approve': 'อนุมัติ',
+    'dash.reject': 'ปฏิเสธ',
     'dash.col.equipment':   'อุปกรณ์ / BookingID',
     'dash.col.booker':      'ผู้จอง',
     'dash.col.course':      'วิชา',
@@ -245,7 +258,7 @@ const TRANSLATIONS = {
     'dash.col.action':      'การดำเนินการ',
     'dash.status.p1':       '1. รออ.ที่ปรึกษา',
     'dash.status.p2':       '2. รอหัวหน้าภาค',
-    'dash.status.p3':       '3. รอเจ้าหน้าที่',
+    'dash.status.p3':       "อนุมัติแล้ว รอรับทราบ",
     // Footer
     'footer.dept':     'ภาควิชาวิศวกรรมเคมี',
     'footer.faculty':  'คณะวิศวกรรมศาสตร์',
@@ -254,9 +267,22 @@ const TRANSLATIONS = {
     'footer.addr2':    'กรุงเทพฯ 10520',
     'footer.tel':      'โทร. 02 329 8360 3, Fax: 02 329 8360 3 กด 4',
     'footer.website':  'เว็บไซต์ภาควิชา',
-    'footer.mapLabel': '📍 ที่ตั้ง CCA Building',
+    'footer.mapLabel': 'ที่ตั้ง CCA Building',
   },
   en: {
+    'role.switch': "Active role",
+    'form.duration': "Booking duration",
+    'form.customDuration': "Custom dates and times",
+    'slot.3h': "(3 hrs)",
+    'dash.acknowledge': "Acknowledge",
+    'dash.acknowledged': "Staff acknowledged",
+    'dash.awaitingAck': "Approved; awaiting staff acknowledgement",
+    'validation.advance': "Book at least 3 business days ahead, excluding weekends and holidays.",
+    'validation.date': "Choose a business day within 180 days.",
+    'validation.time': "Choose whole-hour times between 09:00 and 16:00.",
+    'validation.range': "The end must be after the start.",
+    'validation.duration': "Choose a 1, 2 or 3 hour slot on the same day.",
+    'validation.quantity': "Enter a whole quantity from 1 up to the available stock.",
     // Nav
     'nav.home':       'Home',
     'nav.instrument': 'Instruments',
@@ -265,7 +291,7 @@ const TRANSLATIONS = {
     'nav.chemical':   'Chemicals',
     'nav.myBookings': 'My Bookings',
     'nav.dashboard':  'Dashboard',
-    'nav.bookingList':'📋 Booking List',
+    'nav.bookingList': 'Booking List',
     // Hero
     'hero.eyebrow':   'KMITL ChE · Equipment Booking',
     'hero.title1':    'Equipment Booking System',
@@ -274,7 +300,7 @@ const TRANSLATIONS = {
     'hero.cta':       'Browse Equipment',
     'hero.welcome':   'Welcome',
     // Notice
-    'notice': '⚠️ Instrument bookings require <strong>3 business days</strong> advance notice &nbsp;|&nbsp; Mon–Fri 09:00–16:00 only',
+    'notice': "All categories require <strong>3 business days</strong> advance notice, excluding weekends and holidays | Operating hours 09:00–16:00",
     // Stats
     'stat.instrument': 'Instruments',
     'stat.glassware':  'Glassware',
@@ -298,7 +324,7 @@ const TRANSLATIONS = {
     'step3.title': 'Fill Booking Form',
     'step3.desc':  'Specify date/time, course/project, and select your advisor',
     'step4.title': 'Await Approval',
-    'step4.desc':  'Approval sent by email. Track status in "My Bookings"',
+    'step4.desc':  "Your advisor and department head approve, then staff acknowledge. Track progress in My Bookings.",
     // Equipment page
     'equip.back':        '← Back',
     'equip.search':      'Search...',
@@ -307,7 +333,7 @@ const TRANSLATIONS = {
     'equip.available':   'Available',
     'equip.unavailable': 'Unavailable',
     'equip.addToCart':   '+ Add to list',
-    'equip.inCart':      '✓ In list',
+    'equip.inCart':      "In list",
     'equip.inStock':     'In stock',
     'equip.filterAll':   'All',
     'equip.unit.timed':  'unit(s)',
@@ -318,8 +344,8 @@ const TRANSLATIONS = {
     'cart.clear':   'Clear All',
     'cart.remove':  'Remove',
     // My Bookings
-    'mybook.title':       '📋 My Bookings',
-    'mybook.refresh':     '↻ Refresh',
+    'mybook.title': 'My Bookings',
+    'mybook.refresh':     "Refresh",
     'mybook.loginFirst':  'Please sign in first',
     'mybook.loginDesc':   'Sign in with your institutional Google account',
     'mybook.tab.all':     'All',
@@ -332,13 +358,13 @@ const TRANSLATIONS = {
     'mybook.loadFail':    'Load failed',
     'mybook.cancel':      'Cancel Booking',
     // Dashboard
-    'dash.title':        '📊 Dashboard',
+    'dash.title': 'Dashboard',
     'dash.viewSheets':   'View Bookings (Sheets)',
-    'dash.refresh':      '↻ Refresh',
+    'dash.refresh':      "Refresh",
     'dash.noAccess':     'Access Denied',
     'dash.noAccessDesc': 'Staff and instructors only',
-    'dash.tab.pending':  '⏳ Needs My Approval',
-    'dash.tab.all':      '📋 All Bookings',
+    'dash.tab.pending':  "Needs my action",
+    'dash.tab.all': 'All Bookings',
     'dash.stat.total':   'Total Bookings',
     'dash.stat.pending': 'Pending',
     'dash.stat.approved':'Approved',
@@ -384,12 +410,12 @@ const TRANSLATIONS = {
     'menu.logout':       'Sign Out',
     // Notifications
     'notif.btnTitle': 'Notifications',
-    'notif.header':   '🔔 Notifications',
+    'notif.header': 'Notifications',
     'notif.markRead': 'Mark all read',
     'notif.empty':    'No new notifications',
     // Toast messages
     'toast.loadFail':        'Failed to load data',
-    'toast.loadFailHint':    'Please check SCRIPT_URL in index.html',
+    'toast.loadFailHint':    "Please reload the page and try again",
     'toast.credError':       'Error',
     'toast.credErrorDesc':   'Could not verify credential',
     'toast.loginSuccess':    'Signed in successfully',
@@ -399,7 +425,7 @@ const TRANSLATIONS = {
     'toast.loginHint':       'Click Sign in with Google on the Navbar',
     'toast.alreadyInCart':   'Already in booking list',
     'toast.addedToCart':     'Added to booking list',
-    'toast.addedHint':       'View at "📋 Booking List" button',
+    'toast.addedHint':       'View at " Booking List" button',
     'toast.cartEmpty':       'Booking list is empty',
     'toast.addFirst':        'Add equipment from the catalog first',
     'toast.invalidDate':     'Invalid date selected',
@@ -439,7 +465,7 @@ const TRANSLATIONS = {
     'form.inStock':     'In stock:',
     'form.hint3days':   'At least 3 business days advance • Mon–Fri only',
     'form.hintWeekday': 'Mon–Fri only',
-    'form.radBadge':    '📅 Multi-day booking available',
+    'form.radBadge':    "Specify date/time",
     'form.qty.ph':      'Quantity',
     // Cart modal
     'cart.modal.title':    'Booking List',
@@ -453,9 +479,9 @@ const TRANSLATIONS = {
     'cart.note.label':     'Notes (if any)',
     'cart.note.ph':        'Additional details...',
     'cart.remove':         'Remove ✕',
-    'cart.clearBtn':       '🗑️ Clear List',
+    'cart.clearBtn': 'Clear List',
     'cart.cancelBtn':      'Cancel',
-    'cart.confirmBtn':     '✅ Confirm Booking',
+    'cart.confirmBtn': 'Confirm Booking',
     // Course options
     'course.general':       'General',
     'course.labChE':        'Chemical Engineering Lab',
@@ -473,7 +499,7 @@ const TRANSLATIONS = {
     // Booking status labels (raw data → display)
     'bk.status.p1':  'Awaiting Advisor',
     'bk.status.p2':  'Awaiting Dept. Head',
-    'bk.status.p3':  'Awaiting Staff',
+    'bk.status.p3':  "Approved, awaiting staff acknowledgement",
     'bk.status.ok':  'Approved',
     'bk.status.rej': 'Rejected',
     'bk.status.can': 'Cancelled',
@@ -485,11 +511,11 @@ const TRANSLATIONS = {
     'bk.step.done':    'Complete',
     // Dashboard
     'dash.pending.none':    'No pending items',
-    'dash.pending.waiting': 'Items awaiting your approval',
+    'dash.pending.waiting': "items awaiting action",
     'dash.approveAll':      'Approve All',
     'dash.rejectAll':       'Reject All',
-    'dash.approve':         '✅ Approve',
-    'dash.reject':          '❌ Reject',
+    'dash.approve': 'Approve',
+    'dash.reject': 'Reject',
     'dash.col.equipment':   'Equipment / BookingID',
     'dash.col.booker':      'Booked By',
     'dash.col.course':      'Course',
@@ -498,7 +524,7 @@ const TRANSLATIONS = {
     'dash.col.action':      'Action',
     'dash.status.p1':       '1. Awaiting Advisor',
     'dash.status.p2':       '2. Awaiting Dept. Head',
-    'dash.status.p3':       '3. Awaiting Staff',
+    'dash.status.p3':       "Approved, awaiting acknowledgement",
     // Footer
     'footer.dept':     'Department of Chemical Engineering',
     'footer.faculty':  'Faculty of Engineering',
@@ -507,11 +533,12 @@ const TRANSLATIONS = {
     'footer.addr2':    'Bangkok 10520, Thailand',
     'footer.tel':      'Tel. 02 329 8360 3, Fax: 02 329 8360 3 ext. 4',
     'footer.website':  'Department Website',
-    'footer.mapLabel': '📍 CCA Building',
+    'footer.mapLabel': 'CCA Building',
   }
 };
 
 window.LANG = localStorage.getItem('kcib_lang') || 'th';
+document.documentElement.lang = window.LANG;
 
 window.t = function(key) {
   return (TRANSLATIONS[window.LANG] || TRANSLATIONS.th)[key]
@@ -536,7 +563,9 @@ window.setLang = function(lang) {
   });
   _updateNavLinks();
   _updateI18n();
-  if (window.App) App._route();
+  document.documentElement.lang = lang;
+  updateThemeControls();
+  if (window.App) { App._renderNavRight(); App._route(); }
 };
 
 function _updateNavLinks() {
