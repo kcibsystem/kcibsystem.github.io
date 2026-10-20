@@ -1,7 +1,7 @@
 // ============================================================
 // KCIB Backend — Google Apps Script
 // Spreadsheet: 18nu0jZcDyyEJGfylpazITc5lK2gdb0u5rrmESQnPVZ4
-// Approval: ADVISORS → HEAD_DEPT. Staff acknowledge approved bookings.
+// Approval: ADVISORS → HEAD_DEPT. Staff view bookings without taking action.
 //
 // Deploy: Extensions > Apps Script > Deploy > New deployment
 //   Execute as: Me | Who has access: Anyone
@@ -87,7 +87,6 @@ function doPost(e) {
       case "cancelBooking":  return jsonOut(cancelBooking(data));
       case "approveBooking": return jsonOut(approveBooking(data));
       case "rejectBooking":  return jsonOut(rejectBooking(data));
-      case "acknowledgeBooking": return jsonOut(acknowledgeBooking(data));
       case "saveProfile":    return jsonOut(saveProfile(data));
       default:               return jsonOut({ error: "Invalid action: " + data.action });
     }
@@ -160,13 +159,20 @@ function getStaffConfig() {
 // ==================== BOOKINGS ====================
 function getMyBookings(email) {
   if (!email) return [];
-  return sheetToObjects(SHEETS.BOOKINGS).filter(function(b) {
+  return getAllBookings().filter(function(b) {
     return String(b.Email || "").toLowerCase() === email.toLowerCase();
   });
 }
 
 function getAllBookings() {
-  return sheetToObjects(SHEETS.BOOKINGS);
+  return sheetToObjects(SHEETS.BOOKINGS).map(function(b) {
+    // Normalize old staff-queue rows for display without modifying stored history.
+    if (BookingRules.approved.includes(b.Status)) {
+      b.Status = STATUS.APPROVED;
+      b.CurrentApproverName = STATUS.APPROVED;
+    }
+    return b;
+  });
 }
 
 // ==================== BOOKING VALIDATION ====================
@@ -249,7 +255,7 @@ function cancelBooking(data) {
   return { success: true };
 }
 
-// ==================== APPROVAL / STAFF ACKNOWLEDGEMENT ====================
+// ==================== APPROVAL ====================
 function verifiedActor_(data) {
   if (!data.idToken) throw new Error("กรุณาเข้าสู่ระบบอีกครั้ง");
   let response;
@@ -295,24 +301,9 @@ function approveBooking(data) {
     const next = b.Status === STATUS.P1 ? STATUS.P2 : STATUS.APPROVED;
     const name = next === STATUS.P2
       ? (context.config.HEAD_DEPT || []).map(function(person) { return person.name; }).join(", ") || "หัวหน้าภาควิชา"
-      : "อนุมัติแล้ว รอเจ้าหน้าที่รับทราบ";
+      : STATUS.APPROVED;
     setBookingValue_(context.sheet, b._row, "Status", next);
     setBookingValue_(context.sheet, b._row, "CurrentApproverName", name);
-    return { success: true };
-  });
-}
-
-function acknowledgeBooking(data) {
-  return withBookingLock_(function() {
-    const context = bookingActionContext_(data);
-    const b = context.booking, actor = context.actor;
-    if (!BookingRules.canAcknowledge(b, actor.email, actor.role, context.config)) {
-      return { success: false, error: "ไม่สามารถรับทราบรายการนี้ได้ หรือรับทราบแล้ว" };
-    }
-    setBookingValue_(context.sheet, b._row, "StaffAcknowledgedAt", new Date());
-    setBookingValue_(context.sheet, b._row, "StaffAcknowledgedBy", actor.email);
-    setBookingValue_(context.sheet, b._row, "Status", STATUS.APPROVED);
-    setBookingValue_(context.sheet, b._row, "CurrentApproverName", "เจ้าหน้าที่รับทราบแล้ว");
     return { success: true };
   });
 }
@@ -362,15 +353,13 @@ function saveProfile(data) {
 // Status label map for LINE message
 const STATUS_LABEL = {
   "รอที่ปรึกษาอนุมัติ": "รออาจารย์ที่ปรึกษาอนุมัติ",
-  "รออนุมัติขั้นที่ 2":  "รอหัวหน้าภาควิชาอนุมัติ",
-  "รออนุมัติขั้นที่ 3":  "รอเจ้าหน้าที่รับทราบ"
+  "รออนุมัติขั้นที่ 2":  "รอหัวหน้าภาควิชาอนุมัติ"
 };
 
 // Order for grouping in message
 const STATUS_ORDER = [
   STATUS.P1,
-  STATUS.P2,
-  STATUS.P3
+  STATUS.P2
 ];
 
 function sendDailyLineReport() {

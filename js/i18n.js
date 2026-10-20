@@ -29,9 +29,6 @@ const TRANSLATIONS = {
     'form.duration': "ระยะเวลาจอง",
     'form.customDuration': "ระบุวันและเวลาเอง",
     'slot.3h': "3 ชั่วโมง",
-    'dash.acknowledge': "รับทราบ",
-    'dash.acknowledged': "เจ้าหน้าที่รับทราบแล้ว",
-    'dash.awaitingAck': "รอเจ้าหน้าที่รับทราบ การจองได้รับอนุมัติแล้ว",
     'validation.advance': "ต้องจองล่วงหน้าอย่างน้อย 3 วันทำการ โดยไม่นับเสาร์–อาทิตย์และวันหยุด",
     'validation.date': "กรุณาเลือกวันทำการภายใน 180 วัน",
     'validation.time': "กรุณาเลือกเวลารายชั่วโมงระหว่าง 09:00–16:00 น.",
@@ -79,7 +76,7 @@ const TRANSLATIONS = {
     'step3.title': 'กรอกใบจอง',
     'step3.desc':  'ระบุวันเวลา วิชา/โครงการ และเลือกอาจารย์ที่ปรึกษา',
     'step4.title': 'รอการอนุมัติ',
-    'step4.desc':  "อาจารย์ที่ปรึกษาและหัวหน้าภาคอนุมัติ จากนั้นเจ้าหน้าที่รับทราบ ติดตามได้ที่การจองของฉัน",
+    'step4.desc':  "อาจารย์ที่ปรึกษาและหัวหน้าภาคอนุมัติ ติดตามสถานะได้ที่การจองของฉัน",
     // Equipment page
     'equip.back':        '← กลับ',
     'equip.search':      'ค้นหา...',
@@ -166,6 +163,7 @@ const TRANSLATIONS = {
     // Notifications
     'notif.btnTitle': 'การแจ้งเตือน',
     'notif.header': 'การแจ้งเตือน',
+    'notif.recentBookings': 'รายการจองล่าสุด',
     'notif.markRead': 'อ่านทั้งหมด',
     'notif.empty':    'ไม่มีการแจ้งเตือนใหม่',
     // Toast messages
@@ -254,7 +252,7 @@ const TRANSLATIONS = {
     // Booking status labels (raw data → display)
     'bk.status.p1':  'รอที่ปรึกษาอนุมัติ',
     'bk.status.p2':  'รออนุมัติขั้นที่ 2',
-    'bk.status.p3':  "อนุมัติแล้ว รอเจ้าหน้าที่รับทราบ",
+    'bk.status.p3':  "อนุมัติแล้ว",
     'bk.status.ok':  'อนุมัติแล้ว',
     'bk.status.rej': 'ปฏิเสธ',
     'bk.status.can': 'ยกเลิก',
@@ -279,7 +277,7 @@ const TRANSLATIONS = {
     'dash.col.action':      'การดำเนินการ',
     'dash.status.p1':       '1. รออ.ที่ปรึกษา',
     'dash.status.p2':       '2. รอหัวหน้าภาค',
-    'dash.status.p3':       "อนุมัติแล้ว รอรับทราบ",
+    'dash.status.p3':       "อนุมัติแล้ว",
     // Footer
     'footer.dept':     'ภาควิชาวิศวกรรมเคมี',
     'footer.faculty':  'คณะวิศวกรรมศาสตร์',
@@ -316,9 +314,6 @@ const TRANSLATIONS = {
     'form.duration': "Booking duration",
     'form.customDuration': "Custom dates and times",
     'slot.3h': "3 hours",
-    'dash.acknowledge': "Acknowledge",
-    'dash.acknowledged': "Staff acknowledged",
-    'dash.awaitingAck': "Approved; awaiting staff acknowledgement",
     'validation.advance': "Book at least 3 business days ahead, excluding weekends and holidays.",
     'validation.date': "Choose a business day within 180 days.",
     'validation.time': "Choose whole-hour times between 09:00 and 16:00.",
@@ -366,7 +361,7 @@ const TRANSLATIONS = {
     'step3.title': 'Fill Booking Form',
     'step3.desc':  'Specify date/time, course/project, and select your advisor',
     'step4.title': 'Await Approval',
-    'step4.desc':  "Your advisor and department head approve, then staff acknowledge. Track progress in My Bookings.",
+    'step4.desc':  "Your advisor and department head approve. Track progress in My Bookings.",
     // Equipment page
     'equip.back':        '← Back',
     'equip.search':      'Search...',
@@ -453,6 +448,7 @@ const TRANSLATIONS = {
     // Notifications
     'notif.btnTitle': 'Notifications',
     'notif.header': 'Notifications',
+    'notif.recentBookings': 'Recent bookings',
     'notif.markRead': 'Mark all read',
     'notif.empty':    'No new notifications',
     // Toast messages
@@ -541,7 +537,7 @@ const TRANSLATIONS = {
     // Booking status labels (raw data → display)
     'bk.status.p1':  'Awaiting Advisor',
     'bk.status.p2':  'Awaiting Dept. Head',
-    'bk.status.p3':  "Approved, awaiting staff acknowledgement",
+    'bk.status.p3':  "Approved",
     'bk.status.ok':  'Approved',
     'bk.status.rej': 'Rejected',
     'bk.status.can': 'Cancelled',
@@ -566,7 +562,7 @@ const TRANSLATIONS = {
     'dash.col.action':      'Action',
     'dash.status.p1':       '1. Awaiting Advisor',
     'dash.status.p2':       '2. Awaiting Dept. Head',
-    'dash.status.p3':       "Approved, awaiting acknowledgement",
+    'dash.status.p3':       "Approved",
     // Footer
     'footer.dept':     'Department of Chemical Engineering',
     'footer.faculty':  'Faculty of Engineering',

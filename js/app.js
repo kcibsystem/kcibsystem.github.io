@@ -306,6 +306,10 @@ window.App = {
     return r && r !== 'STUDENT';
   },
 
+  _isApprovalRole() {
+    return ['ADVISORS', 'HEAD_DEPT'].includes(this.state.user?.role);
+  },
+
   /* -------------------------------------------------- NAVBAR */
   _initNavbar() {
     document.addEventListener('keydown', event => {
@@ -1235,7 +1239,7 @@ window.App = {
         if (this._allBookings.length === 0) {
           this._allBookings = await apiGet('getAllBookings');
         }
-        this._notifCount = this._allBookings.filter(b => this._canAct(b)).length;
+        this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
       } else {
         if (this.state.bookings.length === 0) {
           this.state.bookings = await apiGet('getMyBookings', { email: u.email });
@@ -1283,12 +1287,14 @@ window.App = {
     let items = [];
 
     if (isStaff) {
-      items = this._allBookings.filter(b => this._canAct(b)).slice(0, 10).map(b => ({
-        icon: uiIcon('clock'),
+      const approvals = this._isApprovalRole();
+      const bookings = approvals ? this._allBookings.filter(b => this._canApprove(b)) : this._allBookings.slice().reverse();
+      items = bookings.slice(0, 10).map(b => ({
+        icon: uiIcon(approvals ? 'clock' : 'list'),
         title: b.ItemName || '-',
-        desc:  `${b.Name || '-'} · ${b.Status || '-'}`,
+        desc:  `${b.Name || '-'} · ${statusDisplay(b.Status || '-')}`,
         action: () => { this.navigate('dashboard'); },
-        unread: true
+        unread: approvals
       }));
     } else {
       const seen = JSON.parse(localStorage.getItem('kcib_notif_seen') || '{}');
@@ -1308,8 +1314,8 @@ window.App = {
     dropdown.className = 'notif-dropdown';
     dropdown.innerHTML = `
       <div class="notif-dropdown-head">
-        <span class="notif-dropdown-title">${t('notif.header')}</span>
-        ${items.length > 0 ? `<button class="notif-mark-read" onclick="App._markNotifsRead();document.getElementById('notif-dropdown')?.remove();">${t('notif.markRead')}</button>` : ''}
+        <span class="notif-dropdown-title">${t(isStaff && !this._isApprovalRole() ? 'notif.recentBookings' : 'notif.header')}</span>
+        ${items.some(item => item.unread) ? `<button class="notif-mark-read" onclick="App._markNotifsRead();document.getElementById('notif-dropdown')?.remove();">${t('notif.markRead')}</button>` : ''}
       </div>
       <div class="notif-list">
         ${items.length > 0 ? items.map((n, i) => `
@@ -1498,10 +1504,9 @@ window.App = {
             <span class="bk-meta-item"> ${start}</span>
             ${end !== start && end !== '-' ? `<span class="bk-meta-item"> ${end}</span>` : ''}
             <span class="bk-meta-item"> ${escHtml(b.Course || t('course.general'))}</span>
-            ${b.CurrentApproverName ? `<span class="bk-meta-item"> ${escHtml(b.CurrentApproverName)}</span>` : ''}
+            ${b.CurrentApproverName && !BookingRules.approved.includes(b.Status) ? `<span class="bk-meta-item"> ${escHtml(b.CurrentApproverName)}</span>` : ''}
           </div>
           <div class="bk-progress">${progressHtml}</div>
-          ${BookingRules.approved.includes(b.Status) ? `<div class="form-hint">${b.StaffAcknowledgedAt ? t('dash.acknowledged') : t('dash.awaitingAck')}</div>` : ''}
           <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
             ${isCancellable ? `<button class="btn-cancel" onclick="App._cancelBooking('${escHtml(b.BookingID)}')">${t('mybook.cancel')}</button>` : ''}
           </div>
@@ -1594,10 +1599,10 @@ window.App = {
             </div>`).join('')}
         </div>
         <div id="dash-tabs" class="dash-v2-tab-nav" style="display:none;">
-          <button class="dash-v2-tab-btn active" onclick="App._switchDashTab('pending', this)">
+          ${this._isApprovalRole() ? `<button class="dash-v2-tab-btn active" data-tab="pending" onclick="App._switchDashTab('pending', this)">
             ${t('dash.tab.pending')} <span id="dash-needs-badge" style="background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;display:none;"></span>
-          </button>
-          <button class="dash-v2-tab-btn" onclick="App._switchDashTab('all', this)">${t('dash.tab.all')}</button>
+          </button>` : ''}
+          <button class="dash-v2-tab-btn${this._isApprovalRole() ? '' : ' active'}" data-tab="all" onclick="App._switchDashTab('all', this)">${t('dash.tab.all')}</button>
         </div>
         <div id="dash-content">
           <div class="skeleton" style="height:300px;border-radius:var(--radius);"></div>
@@ -1611,10 +1616,12 @@ window.App = {
     try {
       this._allBookings = await apiGet('getAllBookings');
       this._renderDashStats();
-      this._renderDashTabContent('pending');
+      const tab = this._isApprovalRole() ? 'pending' : 'all';
+      document.querySelectorAll('.dash-v2-tab-btn').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+      this._renderDashTabContent(tab);
       document.getElementById('dash-tabs').style.display = '';
       // Recompute staff notification count
-      this._notifCount = this._allBookings.filter(b => this._canAct(b)).length;
+      this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
       this._updateNotifBadge();
     } catch (e) {
       showToast('error', t('toast.dashFail'), e.message);
@@ -1628,7 +1635,7 @@ window.App = {
     const total   = all.length;
     const pending = all.filter(b => BookingRules.pending.includes(b.Status || '')).length;
     const approv  = all.filter(b => BookingRules.approved.includes(b.Status)).length;
-    const needsMe = all.filter(b => this._canAct(b)).length;
+    const needsMe = all.filter(b => this._canApprove(b)).length;
 
     const badge = document.getElementById('dash-needs-badge');
     if (badge) {
@@ -1640,7 +1647,9 @@ window.App = {
       { icon: uiIcon('list'), bg: 'var(--info-bg)', color: 'var(--info)',    num: total,   label: t('dash.stat.total') },
       { icon: uiIcon('clock'), bg: 'var(--warning-bg)', color: 'var(--warning)', num: pending, label: t('dash.stat.pending') },
       { icon: uiIcon('check'), bg: 'var(--success-bg)', color: 'var(--success)', num: approv,  label: t('dash.stat.approved') },
-      { icon: uiIcon('info'), bg: 'var(--danger-bg)', color: 'var(--danger)',  num: needsMe, label: t('dash.stat.needsMe') },
+      this._isApprovalRole()
+        ? { icon: uiIcon('info'), bg: 'var(--danger-bg)', color: 'var(--danger)', num: needsMe, label: t('dash.stat.needsMe') }
+        : { icon: uiIcon('close'), bg: 'var(--danger-bg)', color: 'var(--danger)', num: all.filter(b => [STATUS_REJ, STATUS_CAN].includes(b.Status)).length, label: t('mybook.tab.rejected') },
     ].map(s => `
       <div class="dash-v2-stat-card">
         <div class="dash-v2-stat-icon" style="background:${s.bg};color:${s.color};">${s.icon}</div>
@@ -1662,7 +1671,7 @@ window.App = {
     if (!el) return;
     const all   = this._allBookings;
     const items = tab === 'pending'
-      ? all.filter(b => this._canAct(b))
+      ? all.filter(b => this._canApprove(b))
       : all.slice().reverse().slice(0, 200);
 
     if (items.length === 0) {
@@ -1710,17 +1719,16 @@ window.App = {
           <td style="font-size:13px;">${escHtml(b.Course || '-')}</td>
           <td style="font-size:13px;">${start}</td>
           <td><span class="booking-badge ${badge}">${stepLabel}</span></td>
-          <td>
+          ${this._isApprovalRole() ? `<td>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${canAct ? `
                 <button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);"
                   onclick="App._approveBooking('${escHtml(b.BookingID)}')">${t('dash.approve')}</button>
                 <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border);"
                   onclick="App._rejectBooking('${escHtml(b.BookingID)}')">${t('dash.reject')}</button>
-              ` : this._canAcknowledge(b) ? `<button class="btn btn-secondary btn-sm" onclick="App._acknowledgeBooking('${escHtml(b.BookingID)}')">${t('dash.acknowledge')}</button>`
-                : `<span style="font-size:12px;color:var(--text-3);">${b.StaffAcknowledgedAt ? t('dash.acknowledged') : escHtml(b.CurrentApproverName || '-')}</span>`}
+              ` : `<span style="font-size:12px;color:var(--text-3);">${BookingRules.approved.includes(b.Status) ? escHtml(statusDisplay(b.Status)) : escHtml(b.CurrentApproverName || '-')}</span>`}
             </div>
-          </td>
+          </td>` : ''}
         </tr>`;
     }).join('');
 
@@ -1735,7 +1743,7 @@ window.App = {
               <th>${t('dash.col.course')}</th>
               <th>${t('dash.col.datetime')}</th>
               <th>${t('dash.col.status')}</th>
-              <th>${t('dash.col.action')}</th>
+              ${this._isApprovalRole() ? `<th>${t('dash.col.action')}</th>` : ''}
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1746,25 +1754,6 @@ window.App = {
   _canApprove(b) {
     const u = this.state.user;
     return !!u && BookingRules.canApprove(b, u.email, u.role, this.state.staffConfig);
-  },
-
-  _canAcknowledge(b) {
-    const u = this.state.user;
-    return !!u && BookingRules.canAcknowledge(b, u.email, u.role, this.state.staffConfig);
-  },
-
-  _canAct(b) {
-    return this._canApprove(b) || this._canAcknowledge(b);
-  },
-
-  async _acknowledgeBooking(bookingId) {
-    try {
-      await apiPost({ action: 'acknowledgeBooking', bookingId });
-      showToast('success', t('dash.acknowledged'), '');
-      await this._loadDashboard();
-    } catch (error) {
-      showToast('error', t('toast.submitFail'), error.message);
-    }
   },
 
   async _approveBooking(bookingId) {
@@ -1914,7 +1903,7 @@ window.App = {
    ==================================================== */
 const STATUS_P1  = 'รอที่ปรึกษาอนุมัติ';
 const STATUS_P2  = 'รออนุมัติขั้นที่ 2';   // หัวหน้าภาค (VIEWERS)
-const STATUS_P3  = 'รออนุมัติขั้นที่ 3';   // เจ้าหน้าที่ (STAFF_PROJECT_2 / STAFF_FLOOR_1)
+const STATUS_P3  = 'รออนุมัติขั้นที่ 3';   // Legacy status: already approved by the department head.
 const STATUS_OK  = 'อนุมัติแล้ว';
 const STATUS_REJ = 'ปฏิเสธ';
 const STATUS_CAN = 'ยกเลิก';

@@ -136,25 +136,36 @@ test('dual-role teacher selects existing role; advisor then head approve without
   assert.equal(b.rows[1][13],'รออนุมัติขั้นที่ 2');
   assert.equal(b.context.approveBooking(b.action('dual@kmitl.ac.th','HEAD_DEPT')).success,true);
   assert.equal(b.rows[1][13],'อนุมัติแล้ว');
+  assert.equal(b.rows[1][14],'อนุมัติแล้ว');
 });
 
-test('staff can only acknowledge, with correct course role and audit data; duplicate ack is rejected', () => {
-  const b = backend(); b.addBooking({Status:'อนุมัติแล้ว'});
-  assert.equal(b.context.approveBooking(b.action('staff@kmitl.ac.th','STAFF_FLOOR_1')).success,false);
-  assert.equal(b.context.rejectBooking(b.action('staff@kmitl.ac.th','STAFF_FLOOR_1')).success,false);
-  assert.equal(b.context.rejectBooking(b.action('staff@kmitl.ac.th','ADVISORS')).success,false);
-  assert.equal(b.context.acknowledgeBooking(b.action('tp2@kmitl.ac.th','STAFF_PROJECT_2')).success,false);
-  assert.equal(b.context.acknowledgeBooking(b.action('staff@kmitl.ac.th','STAFF_FLOOR_1')).success,true);
-  assert.equal(b.rows[1][b.rows[0].indexOf('StaffAcknowledgedBy')],'staff@kmitl.ac.th');
-  assert(b.rows[1][b.rows[0].indexOf('StaffAcknowledgedAt')]);
-  assert.equal(b.context.acknowledgeBooking(b.action('staff@kmitl.ac.th','STAFF_FLOOR_1')).success,false);
+test('staff view bookings without approve, reject, or acknowledgement mutations', () => {
+  for (const status of ['รอที่ปรึกษาอนุมัติ','รออนุมัติขั้นที่ 2','อนุมัติแล้ว','รออนุมัติขั้นที่ 3']) {
+    const b = backend(); b.addBooking({Status:status});
+    const before = JSON.stringify(b.rows);
+    for (const [email,role] of [['staff@kmitl.ac.th','STAFF_FLOOR_1'],['tp2@kmitl.ac.th','STAFF_PROJECT_2']]) {
+      assert.equal(b.context.approveBooking(b.action(email,role)).success,false);
+      assert.equal(b.context.rejectBooking(b.action(email,role)).success,false);
+      assert.equal(b.context.rejectBooking(b.action(email,'ADVISORS')).success,false);
+    }
+    b.context.jsonOut = value => value;
+    assert.match(b.context.doPost({postData:{contents:JSON.stringify({action:'acknowledgeBooking',bookingId:'BK1'})}}).error,/Invalid action/);
+    assert.equal(JSON.stringify(b.rows),before);
+  }
 });
 
-test('legacy staff queue remains approved and supports acknowledgement; token verification cannot be bypassed', () => {
-  const b = backend(); b.addBooking({Status:'รออนุมัติขั้นที่ 3',Course:'TEAM PROJECT 2'});
+test('legacy staff queue displays approved without changing history or entering action reminders', () => {
+  const b = backend(); b.addBooking({Status:'รออนุมัติขั้นที่ 3',Course:'TEAM PROJECT 2',CurrentApproverName:'รอเจ้าหน้าที่รับทราบ'});
+  const before = JSON.stringify(b.rows);
+  const read = b.context.getAllBookings()[0];
+  assert.equal(read.Status,'อนุมัติแล้ว');
+  assert.equal(read.CurrentApproverName,'อนุมัติแล้ว');
+  assert.equal(b.context.getMyBookings('student@kmitl.ac.th')[0].Status,'อนุมัติแล้ว');
+  assert.equal(JSON.stringify(b.rows),before);
+  assert.equal(rules.availableQuantity('one',minStart,'2026-10-23T12:00:00',[{...read,Status:'รออนุมัติขั้นที่ 3'}],1),0);
+  assert.deepEqual(Array.from(vm.runInContext('STATUS_ORDER',b.context)),['รอที่ปรึกษาอนุมัติ','รออนุมัติขั้นที่ 2']);
   assert.throws(()=>b.context.approveBooking({bookingId:'BK1',staffEmail:'dual@kmitl.ac.th',activeRole:'HEAD_DEPT'}));
-  assert.throws(()=>b.context.acknowledgeBooking(b.action('invalid','STAFF_PROJECT_2')));
-  assert.equal(b.context.acknowledgeBooking(b.action('viewer@kmitl.ac.th','VIEWERS')).success,false);
-  assert.equal(b.context.acknowledgeBooking(b.action('tp2@kmitl.ac.th','STAFF_PROJECT_2')).success,true);
-  assert.equal(b.rows[1][13],'อนุมัติแล้ว');
+  assert.throws(()=>b.context.approveBooking(b.action('invalid','HEAD_DEPT')));
+  assert.equal(b.context.approveBooking(b.action('dual@kmitl.ac.th','HEAD_DEPT')).success,false);
+  assert.equal(JSON.stringify(b.rows),before);
 });

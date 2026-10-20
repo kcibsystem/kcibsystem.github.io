@@ -65,10 +65,5 @@ const BookingRules = (() => {
     return (role === 'ADVISORS' && booking.Status === pending[0] && emailKey(booking.AdvisorEmail) === emailKey(email))
       || (role === 'HEAD_DEPT' && booking.Status === pending[1]);
   }
-  function canAcknowledge(booking, email, role, config) {
-    const required = /team.?project.?2/i.test(booking.Course || '') ? 'STAFF_PROJECT_2' : 'STAFF_FLOOR_1';
-    return role === required && rolesFor(email, config).includes(role)
-      && approved.includes(booking.Status) && !booking.StaffAcknowledgedAt;
-  }
-  return { today, addDays, businessDay, minDate, allowsDateTime, timestamp, validate, availableQuantity, rolesFor, canApprove, canAcknowledge, pending, approved };
+  return { today, addDays, businessDay, minDate, allowsDateTime, timestamp, validate, availableQuantity, rolesFor, canApprove, pending, approved };
 })();
