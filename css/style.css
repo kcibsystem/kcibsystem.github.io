@@ -302,23 +302,23 @@ input, select, textarea { font-family: inherit; }
 
 /* ===================== CATALOG ===================== */
 .catalog-inner { max-width: 1248px; margin: 0 auto; padding: 0 24px 48px; }
-.home-intro { padding: 46px 0 36px; text-align: center; }
-.home-intro-copy { max-width: 800px; margin: 0 auto; }
+.home-intro { padding: 30px 0 24px; text-align: left; }
+.home-intro-copy { max-width: 100%; }
 .home-full-name { font-size: clamp(17px, 2.2vw, 22px); font-weight: 500; color: var(--text); margin-bottom: 10px; }
-.home-department { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
+.home-department { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 13px; margin-bottom: 12px; }
 .home-department > span:last-child { color: var(--accent); font-weight: 600; }
-.home-intro h1 { font-size: clamp(36px, 4.1vw, 58px); font-weight: 600; letter-spacing: -1.2px; line-height: 1.32; }
-.home-intro h1 > span { display: block; }
-.home-description { max-width: 540px; margin: 18px auto 24px; font-size: 15px; color: var(--text-2); line-height: 1.85; }
+.home-intro h1 { font-size: clamp(32px, 3.4vw, 48px); font-weight: 600; letter-spacing: -1px; line-height: 1.35; }
+.home-intro h1 > span + span::before { content: ' '; }
+.home-description { max-width: 640px; margin: 12px 0 18px; font-size: 15px; color: var(--text-2); line-height: 1.85; }
 .catalog-search { padding: 14px 16px; margin-bottom: 14px; background: var(--surface); border-color: var(--border-strong); }
 .catalog-search input { font-size: 15px; }
-.home-intro .catalog-search { max-width: 640px; margin-left: auto; margin-right: auto; text-align: left; }
+.home-intro .catalog-search { max-width: 640px; text-align: left; }
 .home-browse { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; padding: 4px 0; }
 .home-browse:hover { text-decoration: underline; text-underline-offset: 4px; }
 .home-booking-policy { display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
 .home-booking-policy > span { display: inline-flex; align-items: center; gap: 9px; }
 .home-booking-policy .ui-icon { color: var(--accent); }
-.catalog-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 32px 0 20px; scroll-margin-top: calc(var(--nav-h) + 16px); }
+.catalog-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 24px 0 16px; scroll-margin-top: calc(var(--nav-h) + 16px); }
 .catalog-heading h2 { font-size: 22px; font-weight: 600; }
 .catalog-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .catalog-category { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px; font: inherit; font-size: 14px; color: var(--text-2); cursor: pointer; }
@@ -1638,10 +1638,12 @@ html[data-theme="dark"] .btn-book.btn-in-cart { color: var(--text); }
   .home-description { font-size: 14px; }
 }
 @media (max-width: 680px) {
-  .home-intro { padding: 28px 0 24px; }
-  .home-department { margin-bottom: 14px; }
+  .home-intro { padding: 24px 0 20px; }
+  .home-department { margin-bottom: 12px; }
   .home-intro h1 { font-size: clamp(32px, 7.8vw, 46px); }
-  .home-description { margin: 14px auto 20px; }
+  .home-intro h1 > span { display: block; }
+  .home-intro h1 > span + span::before { content: none; }
+  .home-description { margin: 12px 0 16px; }
   .home-booking-policy { gap: 10px; flex-direction: column; font-size: 12px; }
   .catalog-heading { padding: 24px 0 16px; }
   .catalog-heading h2 { font-size: 20px; }
