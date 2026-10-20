@@ -392,7 +392,7 @@ window.App = {
             <div class="user-name">${u.givenName || u.name.split(' ')[0]}</div>
             <div class="user-role">${t('role.' + u.role)}</div>
           </div>
-          <div class="user-caret">▾</div>
+          <span class="user-caret">${uiIcon('chevronDown', 22)}</span>
         </div>`;
 
       document.getElementById('user-menu-btn').addEventListener('click', e => {
@@ -541,6 +541,7 @@ window.App = {
       <div class="catalog-inner">
         <section class="home-intro" aria-labelledby="home-title">
           <div class="home-intro-copy">
+            <p class="home-full-name">KMITL ChE Inventory &amp; Booking</p>
             <p class="home-department">${t('hero.title2')} <span>KMITL</span></p>
             <h1 id="home-title"><span>${t('home.headline1')}</span><span>${t('home.headline2')}</span></h1>
             <p class="home-description">${t('home.description')}</p>
@@ -551,7 +552,6 @@ window.App = {
             </div>
             <a class="home-browse" href="#home-catalog" onclick="document.getElementById('home-catalog').scrollIntoView({block:'start'});return false;">${t('home.browse')} ${uiIcon('box',16)}</a>
           </div>
-          <div class="home-art">${labBenchIllustration()}<span class="home-art-caption">KMITL Chemical Engineering</span></div>
         </section>
         <div class="home-booking-policy"><span>${uiIcon('calendar',18)} ${t('home.advance')}</span><span>${uiIcon('clock',18)} ${t('home.hours')}</span></div>
         <div class="catalog-heading" id="home-catalog"><h2>${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>

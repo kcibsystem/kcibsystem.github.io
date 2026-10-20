@@ -1,38 +1,6 @@
-function labBenchIllustration() {
-  return `<svg class="lab-illustration" viewBox="0 0 560 410" fill="none" aria-hidden="true">
-    <g stroke="var(--lab-guide)" stroke-width="1">
-      <path d="M46 80H516M46 160H516M46 240H516M46 320H516M120 42V365M200 42V365M280 42V365M360 42V365M440 42V365"/>
-    </g>
-    <ellipse cx="298" cy="359" rx="204" ry="13" fill="var(--lab-shadow)"/>
-    <g stroke="var(--lab-ink)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M91 346H166L156 356H82ZM123 60V346M115 60H131" fill="var(--lab-metal)"/>
-      <path d="M123 112H237M123 174H187"/><rect x="116" y="104" width="14" height="16" rx="3" fill="var(--lab-metal)"/>
-      <path d="M225 65H255V140C255 156 282 171 289 191A65 65 0 1 1 191 191C199 171 225 156 225 140Z" fill="var(--lab-glass)"/>
-      <path d="M186 228C216 216 253 240 294 225A56 56 0 0 1 185 244Z" fill="var(--lab-liquid)" stroke="none"/>
-      <path d="M185 228C223 215 253 241 294 225" stroke="var(--accent)"/>
-      <path d="M219 65H261M225 76H255M224 92H234M224 104H231M224 116H234"/>
-      <path d="M204 196C194 208 191 219 191 231M203 258L208 264" stroke="var(--lab-shine)" stroke-width="5"/>
-      <path d="M248 53V31H325V56M240 53H256"/>
-      <path d="M311 58H339V170L359 190V210H291V190L311 170Z" fill="var(--lab-glass)"/>
-      <path d="M316 77H334M316 95H334M316 113H334M316 131H334M316 149H334M324 58V171L343 192" stroke="var(--lab-cool)"/>
-      <path d="M302 208V229L349 269V287M314 210V223L361 263V287"/>
-      <path d="M325 287H386M332 287V339Q332 350 343 350H373Q384 350 384 339V287" fill="var(--lab-glass)"/>
-      <path d="M339 326Q359 318 377 326V339Q377 344 371 344H345Q339 344 339 339Z" fill="var(--lab-liquid)" stroke="none"/>
-      <path d="M370 302H383M375 312H383M370 322H383"/>
-      <rect x="176" y="298" width="128" height="49" rx="9" fill="var(--lab-metal)"/>
-      <path d="M188 296H291M199 311H242M199 320H226"/>
-      <circle cx="279" cy="323" r="10" fill="var(--lab-liquid)"/><path d="M279 317V323"/>
-      <path d="M432 234H460V268L488 331Q496 349 478 349H416Q398 349 406 331L434 268V234" fill="var(--lab-glass)"/>
-      <path d="M420 308H474L484 334Q489 343 478 343H416Q405 343 410 334Z" fill="var(--lab-cool)" fill-opacity=".3" stroke="none"/>
-      <path d="M428 234H466M429 245H461M452 291H467M459 307H474M466 323H481"/>
-      <path d="M62 357H510"/>
-    </g>
-    <g fill="var(--accent)"><circle cx="239" cy="250" r="3"/><circle cx="252" cy="239" r="2"/><circle cx="226" cy="260" r="2"/></g>
-  </svg>`;
-}
-
 function uiIcon(name, size = 20) {
   const paths = {
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
     search: '<circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/>',
     instrument: '<path d="M9 3h6v3H9zM12 6v7m-4-3 4 3 3-3M8 13a5 5 0 0 0 8 5M6 21h14M9 18v3M17 8a7 7 0 0 1 1 11"/>',
     glassware: '<path d="M9 3h6M10 3v6l-6 10a1.3 1.3 0 0 0 1 2h14a1.3 1.3 0 0 0 1-2L14 9V3M8 14h8"/>',
@@ -62,7 +30,7 @@ function updateThemeControls() {
   const dark = document.documentElement.dataset.theme === 'dark';
   const label = window.LANG === 'en' ? (dark ? 'Light theme' : 'Dark theme') : (dark ? 'ธีมสว่าง' : 'ธีมมืด');
   document.querySelectorAll('.theme-toggle').forEach(button => {
-    button.innerHTML = uiIcon(dark ? 'sun' : 'moon');
+    button.innerHTML = uiIcon(dark ? 'sun' : 'moon') + (button.classList.contains('theme-menu') ? `<span>${label}</span>` : '');
     button.setAttribute('aria-label', label);
     button.title = label;
   });

@@ -199,7 +199,7 @@ input, select, textarea { font-family: inherit; }
 }
 .user-name  { font-size: 14px; font-weight: 600; color: var(--text); max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-role  { font-size: 11px; color: var(--accent); font-weight: 600; }
-.user-caret { color: var(--text-2); font-size: 10px; transition: transform .2s; }
+.user-caret { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex-shrink: 0; color: var(--text-2); transition: transform .2s; }
 .user-menu.open .user-caret { transform: rotate(180deg); }
 
 /* User dropdown */
@@ -302,26 +302,24 @@ input, select, textarea { font-family: inherit; }
 
 /* ===================== CATALOG ===================== */
 .catalog-inner { max-width: 1248px; margin: 0 auto; padding: 0 24px 48px; }
-.home-intro { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding: 46px 0 36px; }
-.home-intro-copy { min-width: 0; }
-.home-department { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
+.home-intro { padding: 46px 0 36px; text-align: center; }
+.home-intro-copy { max-width: 800px; margin: 0 auto; }
+.home-full-name { font-size: clamp(17px, 2.2vw, 22px); font-weight: 500; color: var(--text); margin-bottom: 10px; }
+.home-department { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
 .home-department > span:last-child { color: var(--accent); font-weight: 600; }
 .home-intro h1 { font-size: clamp(36px, 4.1vw, 58px); font-weight: 600; letter-spacing: -1.2px; line-height: 1.32; }
 .home-intro h1 > span { display: block; }
-.home-description { max-width: 440px; margin: 18px 0 24px; font-size: 15px; color: var(--text-2); line-height: 1.85; }
+.home-description { max-width: 540px; margin: 18px auto 24px; font-size: 15px; color: var(--text-2); line-height: 1.85; }
 .catalog-search { padding: 14px 16px; margin-bottom: 14px; background: var(--surface); border-color: var(--border-strong); }
 .catalog-search input { font-size: 15px; }
+.home-intro .catalog-search { max-width: 640px; margin-left: auto; margin-right: auto; text-align: left; }
 .home-browse { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; padding: 4px 0; }
 .home-browse:hover { text-decoration: underline; text-underline-offset: 4px; }
-.home-art { --lab-guide: #e3eaec; --lab-ink: #455b66; --lab-shadow: #dce5e8; --lab-metal: #e5edf0; --lab-glass: #ffffffcc; --lab-liquid: #f2ab84; --lab-shine: #fff; --lab-cool: #608b9b; background: #f3f7f8; border-radius: 80px 12px 80px 12px; position: relative; padding: 8px 4px 32px; }
-.lab-illustration { display: block; width: 100%; height: auto; }
-.home-art-caption { position: absolute; bottom: 24px; right: 36px; color: var(--lab-ink); font-size: 11px; }
 .home-booking-policy { display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
 .home-booking-policy > span { display: inline-flex; align-items: center; gap: 9px; }
 .home-booking-policy .ui-icon { color: var(--accent); }
 .catalog-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 32px 0 20px; scroll-margin-top: calc(var(--nav-h) + 16px); }
 .catalog-heading h2 { font-size: 22px; font-weight: 600; }
-html[data-theme="dark"] .home-art { --lab-guide: #2e4049; --lab-ink: #b3c9d2; --lab-shadow: #14232b; --lab-metal: #314751; --lab-glass: #263943e6; --lab-liquid: #d78a62; --lab-shine: #7f9ba7; --lab-cool: #8fb6c5; background: #21303a; }
 .catalog-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .catalog-category { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px; font: inherit; font-size: 14px; color: var(--text-2); cursor: pointer; }
 .catalog-category:hover { border-color: var(--border-strong); color: var(--text); }
@@ -1587,6 +1585,11 @@ table.dash-table {
 .cat-icon .ui-icon { width: 26px; height: 26px; }
 .theme-toggle { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; background: var(--surface); color: var(--text-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .theme-toggle:hover { background: var(--surface-muted); }
+.theme-toggle.theme-menu { display: none; }
+@media (max-width: 1200px) {
+  .theme-toggle.theme-desktop { display: none; }
+  .theme-toggle.theme-menu { display: flex; gap: 12px; justify-content: flex-start; width: 100%; padding: 12px 16px; height: auto; min-height: 44px; border: 0; font-size: 14px; }
+}
 .role-switcher { display: flex; flex-direction: column; gap: 6px; padding: 12px; font-size: 12px; color: var(--text-2); }
 .role-switcher select { width: 100%; padding: 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-size: 13px; }
 .cart-item-name, .bk-item-title { display: flex; align-items: center; gap: 8px; }
@@ -1631,18 +1634,14 @@ html[data-theme="dark"] .btn-book.btn-in-cart { color: var(--text); }
 .schedule-availability { font-size: 12px; line-height: 1.8; margin-top: 12px; }
 .time-slot span { display: block; font-size: 11px; }
 @media (max-width: 900px) {
-  .home-intro { gap: 24px; }
   .home-intro h1 { font-size: 38px; }
   .home-description { font-size: 14px; }
 }
 @media (max-width: 680px) {
-  .home-intro { grid-template-columns: 1fr; gap: 24px; padding: 28px 0 24px; }
+  .home-intro { padding: 28px 0 24px; }
   .home-department { margin-bottom: 14px; }
   .home-intro h1 { font-size: clamp(32px, 7.8vw, 46px); }
-  .home-description { margin: 14px 0 20px; }
-  .home-art { border-radius: 48px 10px 48px 10px; padding: 0 0 24px; }
-  .lab-illustration { max-height: 230px; }
-  .home-art-caption { bottom: 16px; right: 24px; font-size: 10px; }
+  .home-description { margin: 14px auto 20px; }
   .home-booking-policy { gap: 10px; flex-direction: column; font-size: 12px; }
   .catalog-heading { padding: 24px 0 16px; }
   .catalog-heading h2 { font-size: 20px; }
