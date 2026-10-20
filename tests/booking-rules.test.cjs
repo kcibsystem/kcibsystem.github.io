@@ -70,7 +70,7 @@ function backend() {
   const headers = ['Timestamp','BookingID','Email','Name','Category','ItemName','ItemID','Course','Quantity','Start','End','Note','AdvisorEmail','Status','CurrentApproverName','StudentID','EducationLevel'];
   const rows = [headers.slice()];
   const metrics = { reads: 0, writes: 0, tokenChecks: 0, tokenChecksUnderLock: 0, initReads: 0 };
-  let locks = 0, releases = 0;
+  let locks = 0, releases = 0, uuid = 0;
   const cache = new Map();
   const sheet = {
     getDataRange: () => ({getValues:()=>{metrics.reads++;return rows.map(row=>row.slice());}}),
@@ -98,7 +98,7 @@ function backend() {
     SpreadsheetApp:{openById:()=>({getSheetByName:()=>sheet}),flush:()=>{}},
     LockService:{getScriptLock:()=>({waitLock:()=>locks++,releaseLock:()=>releases++})},
     CacheService:{getScriptCache:()=>({get:key=>cache.get(key)||null,put:(key,value)=>cache.set(key,value)})},
-    Utilities:{getUuid:()=>String(rows.length),formatDate:d=>new Date(d.getTime()+7*3600000).toISOString().slice(0,19)},
+    Utilities:{getUuid:()=>String(++uuid),formatDate:d=>new Date(d.getTime()+7*3600000).toISOString().slice(0,19)},
     UrlFetchApp:{fetch:url=>{metrics.tokenChecks++;if(locks>releases)metrics.tokenChecksUnderLock++;return {getResponseCode:()=>url.endsWith('invalid')?401:200,getContentText:()=>JSON.stringify({
       email:decodeURIComponent(url.split('=').pop()), aud:'334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com',
       iss:'https://accounts.google.com',email_verified:'true',exp:2000000000
@@ -237,4 +237,23 @@ test('pending writes flush before releasing the lock, including on an interrupte
   b.context.SpreadsheetApp.flush=()=>events.push('flush');
   assert.throws(()=>b.context.withBookingLock_(()=>{throw new Error('write failed');}),/write failed/);
   assert.deepEqual(events,['lock','flush','unlock']);
+});
+
+test('display cache is bypassed by refresh and old reads cannot refill the cache after a mutation', () => {
+  const b=backend();b.addBooking({});
+  const old=b.context.getDisplayBookings_(false);b.context.getDisplayBookings_(false);assert.equal(b.metrics.reads,1);
+  const oldKey=Array.from(b.cache.keys()).find(key=>key.startsWith('kcib_bookings_v1_'));
+  b.context.approveBooking(b.action('dual@kmitl.ac.th','ADVISORS'));
+  b.cache.set(oldKey,JSON.stringify(old)); // Simulate a delayed response storing an old snapshot.
+  assert.equal(b.context.getDisplayBookings_(false)[0].Status,'รออนุมัติขั้นที่ 2');
+  b.rows[1][13]='ปฏิเสธ';
+  assert.equal(b.context.getDisplayBookings_(false)[0].Status,'รออนุมัติขั้นที่ 2');
+  assert.equal(b.context.getDisplayBookings_(true)[0].Status,'ปฏิเสธ');
+});
+
+test('cancellation shares the mutation lock and invalidates the display cache', () => {
+  const b=backend();b.addBooking({});b.context.getDisplayBookings_(false);
+  assert.equal(b.context.cancelBooking({bookingId:'BK1',email:'student@kmitl.ac.th'}).success,true);
+  assert.deepEqual(b.lockCounts(),[1,1]);assert.equal(b.context.getDisplayBookings_(false)[0].Status,'ยกเลิก');
+  assert.equal(b.context.approveBooking(b.action('dual@kmitl.ac.th','ADVISORS')).success,false);
 });

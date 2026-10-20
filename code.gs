@@ -71,7 +71,7 @@ function doGet(e) {
     switch (p.func) {
       case "init":          return jsonOut(getInitData(p.refresh === "1"));
       case "getMyBookings": return jsonOut(getMyBookings(p.email));
-      case "getAllBookings": return jsonOut(getAllBookings());
+      case "getAllBookings": return jsonOut(getDisplayBookings_(p.refresh === "1"));
       case "getProfile":    return jsonOut(getProfile(p.email));
       default:              return jsonOut({ error: "Invalid function: " + (p.func || "(none)") });
     }
@@ -175,7 +175,7 @@ function getStaffConfig() {
 // ==================== BOOKINGS ====================
 function getMyBookings(email) {
   if (!email) return [];
-  return getAllBookings().filter(function(b) {
+  return getDisplayBookings_(false).filter(function(b) {
     return String(b.Email || "").toLowerCase() === email.toLowerCase();
   });
 }
@@ -191,6 +191,26 @@ function getAllBookings() {
   });
 }
 
+function getDisplayBookings_(refresh) {
+  let cache, key;
+  try {
+    cache = CacheService.getScriptCache();
+    key = "kcib_bookings_v1_" + (cache.get("kcib_bookings_revision") || "initial");
+    if (!refresh) {
+      const saved = cache.get(key);
+      if (saved) return JSON.parse(saved);
+    }
+  } catch (_) {}
+  const bookings = getAllBookings();
+  try { if (cache && key) cache.put(key, JSON.stringify(bookings), 10); } catch (_) {}
+  return bookings;
+}
+
+function invalidateBookingCache_() {
+  // A new key also prevents an older in-flight read from repopulating the current cache.
+  try { CacheService.getScriptCache().put("kcib_bookings_revision", Utilities.getUuid(), 21600); } catch (_) {}
+}
+
 // ==================== BOOKING VALIDATION ====================
 function withBookingLock_(operation) {
   const lock = LockService.getScriptLock();
@@ -198,7 +218,7 @@ function withBookingLock_(operation) {
   try { return operation(); }
   finally {
     try { SpreadsheetApp.flush(); }
-    finally { lock.releaseLock(); }
+    finally { invalidateBookingCache_(); lock.releaseLock(); }
   }
 }
 
@@ -251,28 +271,30 @@ function submitBooking(data) {
 
 // ==================== CANCEL BOOKING ====================
 function cancelBooking(data) {
-  const sheet = sh_(SHEETS.BOOKINGS);
-  if (!sheet) return { success: false, error: "Sheet not found" };
+  return withBookingLock_(function() {
+    const sheet = sh_(SHEETS.BOOKINGS);
+    if (!sheet) return { success: false, error: "Sheet not found" };
 
-  const headers  = getHeaders_(SHEETS.BOOKINGS);
-  const allData  = sheet.getDataRange().getValues();
-  const bidCol   = colIdx_(headers, "BookingID");
-  const emCol    = colIdx_(headers, "Email");
-  const stCol    = colIdx_(headers, "Status") + 1;
-  const caCol    = colIdx_(headers, "CurrentApproverName") + 1;
+    const headers  = getHeaders_(SHEETS.BOOKINGS);
+    const allData  = sheet.getDataRange().getValues();
+    const bidCol   = colIdx_(headers, "BookingID");
+    const emCol    = colIdx_(headers, "Email");
+    const stCol    = colIdx_(headers, "Status") + 1;
+    const caCol    = colIdx_(headers, "CurrentApproverName") + 1;
 
-  var rowNo = -1;
-  for (var i = 1; i < allData.length; i++) {
-    if (
-      String(allData[i][bidCol]) === data.bookingId &&
-      String(allData[i][emCol]).toLowerCase() === (data.email || "").toLowerCase()
-    ) { rowNo = i + 1; break; }
-  }
-  if (rowNo === -1) return { success: false, error: "Booking not found" };
+    var rowNo = -1;
+    for (var i = 1; i < allData.length; i++) {
+      if (
+        String(allData[i][bidCol]) === data.bookingId &&
+        String(allData[i][emCol]).toLowerCase() === (data.email || "").toLowerCase()
+      ) { rowNo = i + 1; break; }
+    }
+    if (rowNo === -1) return { success: false, error: "Booking not found" };
 
-  sheet.getRange(rowNo, stCol).setValue(STATUS.CANCELLED);
-  sheet.getRange(rowNo, caCol).setValue("ยกเลิกโดยผู้จอง");
-  return { success: true };
+    sheet.getRange(rowNo, stCol).setValue(STATUS.CANCELLED);
+    sheet.getRange(rowNo, caCol).setValue("ยกเลิกโดยผู้จอง");
+    return { success: true };
+  });
 }
 
 // ==================== APPROVAL ====================

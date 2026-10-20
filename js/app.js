@@ -1059,7 +1059,7 @@ window.App = {
     if (![1,2,3].includes(hours)) return;
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await this._fetchAllBookings();
+      const bookings = await this._fetchAllBookings(true);
       if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
       entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
       const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
@@ -1111,7 +1111,7 @@ window.App = {
     if (invalid) { this._setScheduleMessage(key, t('validation.' + invalid), true); return; }
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await this._fetchAllBookings();
+      const bookings = await this._fetchAllBookings(true);
       if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
       entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
       this._showCartAvailability(key, start, end);
@@ -1610,21 +1610,26 @@ window.App = {
       </div>`;
 
     if (this._allBookings.length) this._renderDashboardData();
-    await this._loadDashboard();
+    await this._loadDashboard(false);
   },
 
   _bookingRevision: 0,
   _bookingAction: null,
 
-  _fetchAllBookings() {
-    if (this._bookingsRequest) return this._bookingsRequest;
+  _bookingReadSequence: 0,
+
+  _fetchAllBookings(refresh = false) {
+    if (this._bookingsRequest && (!refresh || this._bookingsRequestFresh)) return this._bookingsRequest;
     const revision = this._bookingRevision;
-    this._bookingsRequest = apiGet('getAllBookings').then(bookings => {
+    const sequence = ++this._bookingReadSequence;
+    this._bookingsRequestFresh = refresh;
+    const request = apiGet('getAllBookings', refresh ? { refresh: '1' } : {}).then(bookings => {
       // A read started before an approval must not overwrite its confirmed result.
-      if (revision === this._bookingRevision) this._allBookings = bookings;
+      if (revision === this._bookingRevision && sequence === this._bookingReadSequence) this._allBookings = bookings;
       return this._allBookings;
-    }).finally(() => { this._bookingsRequest = null; });
-    return this._bookingsRequest;
+    }).finally(() => { if (this._bookingsRequest === request) this._bookingsRequest = null; });
+    this._bookingsRequest = request;
+    return request;
   },
 
   _renderDashboardData() {
@@ -1637,11 +1642,11 @@ window.App = {
     this._updateNotifBadge();
   },
 
-  async _loadDashboard() {
+  async _loadDashboard(refresh = true) {
     const button = document.getElementById('dash-refresh');
     if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
     try {
-      await this._fetchAllBookings();
+      await this._fetchAllBookings(refresh);
       this._renderDashboardData();
     } catch (e) {
       showToast('error', t('toast.dashFail'), e.message);
