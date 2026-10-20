@@ -1,5 +1,6 @@
 function uiIcon(name, size = 20) {
   const paths = {
+    search: '<circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/>',
     instrument: '<path d="M9 3h6v3H9zM12 6v7m-4-3 4 3 3-3M8 13a5 5 0 0 0 8 5M6 21h14M9 18v3M17 8a7 7 0 0 1 1 11"/>',
     glassware: '<path d="M9 3h6M10 3v6l-6 10a1.3 1.3 0 0 0 1 2h14a1.3 1.3 0 0 0 1-2L14 9V3M8 14h8"/>',
     scientific: '<path d="M5 4h14v4l-2 3v10H7V11L5 8zM7 8h10M10 15h4M10 18h4"/>',

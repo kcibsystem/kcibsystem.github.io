@@ -50,6 +50,8 @@ window.App = {
     cart:        [],       // cart items: { item, id }
     initLoaded:  false,
     initError:   false,
+    inventoryFetchedAt: null,
+    inventoryRefreshing: false,
     profile:     null      // { studentId, educationLevel }
   },
   _allBookings: [],
@@ -69,6 +71,7 @@ window.App = {
     window.addEventListener('hashchange', () => this._route());
 
     // The page is usable immediately; inventory loads in place.
+    this._homeSearch = document.getElementById('home-search')?.value || '';
     this._route();
     this._renderNavRight();
     this._renderGSI();
@@ -82,8 +85,9 @@ window.App = {
       showToast('error', t('toast.loadFail'), t('toast.loadFailHint'));
     }
 
-    // Route
-    this._route();
+    // Update loaded data without resetting catalog search or scroll position.
+    this._refreshCatalogView();
+    if (document.querySelector('#page-my-bookings.active, #page-dashboard.active')) this._route();
     this._renderNavRight();
     this._renderGSI();
 
@@ -104,27 +108,70 @@ window.App = {
       if (cached) {
         const { ts, data } = JSON.parse(cached);
         if (Date.now() - ts < CACHE_TTL) {
-          this._applyInitData(data);
+          this._applyInitData(data, ts);
           // Refresh in background silently
-          apiGet('init').then(fresh => {
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: fresh }));
-            this._applyInitData(fresh);
-            if (!document.getElementById('modal-overlay').classList.contains('open')) this._route();
-            this._renderNavRight();
-          }).catch(() => {});
+          this._refreshInventory().catch(() => {});
           return;
         }
       }
     } catch (_) {}
 
-    const data = await apiGet('init');
-    try {
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
-    } catch (_) {}
-    this._applyInitData(data);
+    await this._refreshInventory();
   },
 
-  _applyInitData(data) {
+  async _refreshInventory() {
+    if (this._inventoryRequest) return this._inventoryRequest;
+    this.state.inventoryRefreshing = true;
+    this._updateInventoryMeta();
+    this._inventoryRequest = (async () => {
+      try {
+        const data = await apiGet('init');
+        const fetchedAt = Date.now();
+        try { sessionStorage.setItem('kcib_init_v1', JSON.stringify({ ts: fetchedAt, data })); } catch (_) {}
+        this._applyInitData(data, fetchedAt);
+        this._refreshCatalogView();
+        this._renderNavRight();
+      } finally {
+        this.state.inventoryRefreshing = false;
+        this._inventoryRequest = null;
+        this._updateInventoryMeta();
+      }
+    })();
+    return this._inventoryRequest;
+  },
+
+  _refreshCatalogView() {
+    if (document.getElementById('page-home').classList.contains('active')) this._renderHomeGrid();
+    if (document.getElementById('page-equipment').classList.contains('active')) {
+      this._renderLocationFilters();
+      this._renderEquipGrid();
+    }
+    this._updateInventoryMeta();
+  },
+
+  _formatFetchTime(timestamp) {
+    return new Date(timestamp).toLocaleString(window.LANG === 'en' ? 'en-GB' : 'th-TH', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok'
+    });
+  },
+
+  _inventoryMetaHTML() {
+    return `<div class="inventory-meta"><span class="inventory-updated"></span>
+      <button class="inventory-refresh" onclick="App._refreshInventory().catch(() => showToast('error', t('toast.loadFail'), t('toast.loadFailHint')))">${t('mybook.refresh')}</button></div>`;
+  },
+
+  _updateInventoryMeta() {
+    const timestamp = this.state.inventoryFetchedAt;
+    document.querySelectorAll('.inventory-updated').forEach(element => {
+      element.textContent = timestamp ? `${t('catalog.fetchedAt')} ${this._formatFetchTime(timestamp)}` : t(this.state.initError ? 'toast.loadFail' : 'catalog.loading');
+    });
+    document.querySelectorAll('.inventory-meta .inventory-refresh').forEach(button => {
+      button.disabled = this.state.inventoryRefreshing;
+      button.textContent = t(this.state.inventoryRefreshing ? 'catalog.refreshing' : 'mybook.refresh');
+    });
+  },
+
+  _applyInitData(data, fetchedAt) {
     const inv = data.inventory || [];
     this.state.inventory = inv.map(normalizeItem);
 
@@ -134,6 +181,7 @@ window.App = {
     this.state.staffConfig = data.staffConfig || {};
     this.state.initLoaded  = true;
     this.state.initError   = false;
+    this.state.inventoryFetchedAt = Number(fetchedAt) || null;
 
     // Re-determine role if user already logged in
     if (this.state.user) {
@@ -485,107 +533,60 @@ window.App = {
   },
 
   /* ================================================== HOME PAGE */
+  _homeSearch: '',
+  _homeCategory: '',
+
   _renderHome() {
-    const el   = document.getElementById('page-home');
-    const inv  = this.state.inventory;
-    const u    = this.state.user;
-
-    const countFor = cat => inv.filter(i => i.category === cat).length;
-    const availFor = cat => inv.filter(i => i.category === cat && i.available).length;
-
-    el.innerHTML = `
-      <!-- HERO -->
-      <section class="hero" aria-labelledby="home-title">
-        <div class="hero-inner">
-        <div class="hero-eyebrow">${t('hero.eyebrow')}</div>
-        <h1 class="hero-title" id="home-title">${t('hero.title1')}</h1>
-        <p class="hero-department">${t('hero.title2')}</p>
-        <p class="hero-sub">${t('hero.sub')}</p>
-        ${u
-          ? `<div class="hero-welcome">
-               ${u.picture ? `<img src="${u.picture}" alt="" referrerpolicy="no-referrer">` : ''}
-               ${t('hero.welcome')}, ${u.givenName || u.name.split(' ')[0]}
-             </div>`
-          : ''
-        }
-        <a href="#categories" class="hero-cta" onclick="document.getElementById('categories').scrollIntoView();return false;">${t('hero.cta')}</a>
+    document.getElementById('page-home').innerHTML = `
+      <div class="catalog-inner">
+        <header class="catalog-header">
+          <h1 id="home-title">${t('hero.title1')}</h1>
+          <p>${t('hero.title2')}</p>
+        </header>
+        <div class="catalog-search equip-search">
+          ${uiIcon('search')}
+          <input id="home-search" type="search" aria-label="${t('catalog.search')}" placeholder="${t('catalog.search')}"
+            value="${escHtml(this._homeSearch)}" oninput="App._onHomeSearch(this.value)">
         </div>
-      </section>
-
-      <!-- NOTICE -->
-      <div class="notice-bar">${t('notice')}</div>
-
-      <!-- STATS -->
-      <section class="section">
-        <div class="section-inner">
-          <div class="stats-row">
-            ${[
-              { num: countFor('instrument'), label: t('stat.instrument') },
-              { num: countFor('glassware'),  label: t('stat.glassware') },
-              { num: countFor('scientific'), label: t('stat.scientific') },
-              { num: inv.filter(i => i.available).length, label: t('stat.available') },
-            ].map(s => `
-              <div class="stat-card">
-                <div class="stat-num">${this.state.initLoaded ? s.num : '—'}</div>
-                <div class="stat-label">${s.label}</div>
-              </div>`).join('')}
-          </div>
-
-          <h2 class="section-title" id="categories">${t('section.catTitle')}</h2>
-          <p class="section-desc">
-            ${t('section.catDesc')}<br>
-            <span class="realtime-ts">
-              <span class="realtime-dot"></span>
-              ${t('section.updatedAt')}: ${new Date().toLocaleString(window.LANG === 'en' ? 'en-GB' : 'th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short', timeZone: 'Asia/Bangkok' })}${window.LANG === 'en' ? '' : 'น.'}
-            </span>
-          </p>
-
-          <div class="cat-grid">
-            ${Object.values(CAT_CONFIG).map(cat => {
-              const name = t(`cat.${cat.id}.name`);
-              const desc = t(`cat.${cat.id}.desc`);
-              return `
-              <a class="cat-card" href="#${cat.id}" onclick="App.navigate('${cat.id}');return false;">
-                <div class="cat-card-top">
-                  <div class="cat-icon" style="background:${cat.bgColor};color:${cat.textColor};">${cat.icon}</div>
-                  <div class="cat-info">
-                    <div class="cat-name">${name}</div>
-                    <div class="cat-desc">${desc}</div>
-                  </div>
-                </div>
-                <div class="cat-card-bottom">
-                  <div class="cat-count">
-                    <span class="cat-count-num">${this.state.initLoaded ? availFor(cat.id) : '—'}</span>
-                    <span>${t('cat.availOf')} ${this.state.initLoaded ? countFor(cat.id) : '—'} ${t('cat.ready')}</span>
-                  </div>
-                  <div class="cat-arrow">→</div>
-                </div>
-              </a>`;
-            }).join('')}
-          </div>
+        <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
+          ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
+            aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
         </div>
-      </section>
+        <div class="catalog-summary"><p class="catalog-policy">${t('form.scheduleHint')}</p>${this._inventoryMetaHTML()}</div>
+        <p class="catalog-results" id="home-result-count" aria-live="polite"></p>
+        <div class="equip-grid" id="home-grid"></div>
+        <details class="booking-guide"><summary>${t('section.howTitle')}</summary>
+          <ol>${[1,2,3,4].map(step => `<li><strong>${t('step' + step + '.title')}</strong> ${t('step' + step + '.desc')}</li>`).join('')}</ol>
+        </details>
+      </div>`;
+    this._renderHomeGrid();
+    this._updateInventoryMeta();
+  },
 
-      <!-- HOW TO -->
-      <section class="section section-alt">
-        <div class="section-inner">
-          <h2 class="section-title">${t('section.howTitle')}</h2>
-          <div class="steps-grid">
-            ${[
-              { n:'1', title: t('step1.title'), desc: t('step1.desc') },
-              { n:'2', title: t('step2.title'), desc: t('step2.desc') },
-              { n:'3', title: t('step3.title'), desc: t('step3.desc') },
-              { n:'4', title: t('step4.title'), desc: t('step4.desc') },
-            ].map(s => `
-              <div class="step-card">
-                <div class="step-num">${s.n}</div>
-                <div class="step-title">${s.title}</div>
-                <div class="step-desc">${s.desc}</div>
-              </div>`).join('')}
-          </div>
-        </div>
-      </section>
-    `;
+  _onHomeSearch(value) {
+    this._homeSearch = value;
+    this._renderHomeGrid();
+  },
+
+  _setHomeCategory(category) {
+    this._homeCategory = category;
+    document.querySelectorAll('.catalog-category').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.category === category)));
+    this._renderHomeGrid();
+  },
+
+  _renderHomeGrid() {
+    const grid = document.getElementById('home-grid');
+    if (!grid) return;
+    if (!this.state.initLoaded) {
+      grid.innerHTML = this.state.initError ? `<p class="equip-empty">${t('toast.loadFail')}</p>` : this._skeletonGrid(6);
+      return;
+    }
+    const search = this._homeSearch.trim().toLowerCase();
+    const items = this.state.inventory.filter(item => (!this._homeCategory || item.category === this._homeCategory)
+      && (!search || [item.name, item.model, item.location, item.detail].some(value => value.toLowerCase().includes(search))));
+    document.getElementById('home-result-count').textContent = `${items.length} ${t('toast.items')}`;
+    grid.innerHTML = items.length ? items.map(item => this._equipCardHTML(item, CAT_CONFIG[item.category])).join('')
+      : `<div class="equip-empty"><p>${t('equip.noResults')}</p></div>`;
   },
 
   /* ================================================== EQUIPMENT PAGE */
@@ -625,6 +626,7 @@ window.App = {
       </div>
       <div id="equip-filters" class="equip-filters"></div>
       <div class="equip-content">
+        ${this._inventoryMetaHTML()}
         <div class="equip-grid" id="equip-grid"></div>
       </div>`;
 
@@ -636,6 +638,7 @@ window.App = {
     }
     this._renderLocationFilters();
     this._renderEquipGrid();
+    this._updateInventoryMeta();
   },
 
   _renderLocationFilters() {
@@ -697,6 +700,10 @@ window.App = {
     const cat    = CAT_CONFIG[catId];
     const grid   = document.getElementById('equip-grid');
     if (!grid) return;
+    if (!this.state.initLoaded) {
+      grid.innerHTML = this.state.initError ? `<p class="equip-empty">${t('toast.loadFail')}</p>` : this._skeletonGrid(6);
+      return;
+    }
 
     let items = this.state.inventory.filter(i => i.category === catId);
 
@@ -734,48 +741,21 @@ window.App = {
   },
 
   _equipCardHTML(item, cat) {
-    const isRAD    = item.isRAD;
-    const inCart   = this.state.cart.some(c => c.item.id === item.id);
-    const availBadge = item.available
-      ? `<span class="eq-avail-badge available">${t('equip.available')}</span>`
-      : `<span class="eq-avail-badge unavailable">${t('equip.unavailable')}</span>`;
-
-    const unit = cat.bookingType === 'timed' ? t('equip.unit.timed') : t('equip.unit.qty');
-    const qtyBadge = item.maxQty > 0
-      ? `<div class="eq-qty-badge${item.maxQty <= 2 ? ' low' : ''}">
-           ${item.maxQty <= 2 ? uiIcon('info') : uiIcon('check')} ${t('equip.inStock')}: ${item.maxQty} ${unit}
-         </div>`
-      : '';
-
-    let bookBtnHtml;
-    if (!item.available) {
-      bookBtnHtml = `<button class="btn-book" disabled>${t('equip.unavailable')}</button>`;
-    } else if (inCart) {
-      bookBtnHtml = `<button class="btn-book" style="background:var(--success);" onclick="App._openCart()">${t('equip.inCart')}</button>`;
-    } else {
-      bookBtnHtml = `<button class="btn-book" onclick="App._addToCart('${escHtml(item.id)}')">${t('equip.addToCart')}</button>`;
-    }
-
-    return `
-      <div class="eq-card">
-        <div class="eq-card-head">
-          <div class="eq-card-icon" style="background:${cat.bgColor};color:${cat.textColor};">${cat.icon}</div>
-          <div class="eq-card-info">
-            <div class="eq-card-name">${escHtml(item.name)}</div>
-            ${item.model && item.model !== '-' ? `<div class="eq-model">${escHtml(item.model)}</div>` : ''}
-          </div>
-          ${availBadge}
-        </div>
-        <div class="eq-card-body">
-          ${item.location ? `<div class="eq-meta"><span class="eq-meta-icon">${uiIcon('location')}</span><span>${escHtml(item.location)}</span></div>` : ''}
-          ${item.detail   ? `<div class="eq-detail">${escHtml(item.detail)}</div>` : ''}
-          ${qtyBadge}
-          ${isRAD         ? `<div class="eq-rad-badge">${t('form.radBadge')}</div>` : ''}
-        </div>
-        <div class="eq-card-foot">
-          ${bookBtnHtml}
-        </div>
-      </div>`;
+    const inCart = this.state.cart.some(entry => entry.item.id === item.id);
+    const unit = t(cat.bookingType === 'timed' ? 'equip.unit.timed' : 'equip.unit.qty');
+    const action = !item.available
+      ? `<button class="btn-book" disabled>${t('equip.unavailable')}</button>`
+      : inCart ? `<button class="btn-book btn-in-cart" onclick="App._openCart()">${t('equip.inCart')}</button>`
+        : `<button class="btn-book" onclick="App._addToCart('${escHtml(item.id)}')">${t('equip.addToCart')}</button>`;
+    return `<article class="eq-card">
+      <div class="eq-card-info"><h2 class="eq-card-name">${escHtml(item.name)}</h2>
+        ${item.model && item.model !== '-' ? `<p class="eq-model">${escHtml(item.model)}</p>` : ''}</div>
+      <div class="eq-card-body">
+        ${item.location ? `<p class="eq-location">${uiIcon('location',16)} ${escHtml(item.location)}</p>` : ''}
+        ${item.detail ? `<p class="eq-detail">${escHtml(item.detail)}</p>` : ''}
+      </div>
+      <div class="eq-card-foot"><span class="eq-stock">${t('equip.inStock')} ${item.maxQty} ${unit}</span>${action}</div>
+    </article>`;
   },
 
   _promptLogin() {
@@ -808,7 +788,7 @@ window.App = {
     }
     this.state.cart.push({ item });
     this._renderNavRight();
-    this._renderEquipGrid(); // refresh card buttons
+    this._refreshCatalogView(); // refresh card buttons
     showToast('success', t('toast.addedToCart'), `${item.name} — ${t('toast.addedHint')}`);
   },
 
@@ -821,7 +801,7 @@ window.App = {
       this._renderCartModal();
     }
     // Refresh grid if on equipment page
-    if (document.getElementById('equip-grid')) this._renderEquipGrid();
+    this._refreshCatalogView();
   },
 
   _openCart() {
@@ -836,36 +816,24 @@ window.App = {
     this._renderCartModal();
     document.getElementById('modal-overlay').classList.add('open');
     document.body.style.overflow = 'hidden';
-    setTimeout(() => this._initCartPickers(), 0);
   },
 
   _initCartPickers() {
     if (typeof flatpickr === 'undefined') return;
-    const holidays     = Array.from(this.state.holidays);
-    const disableWeekends = d => d.getDay() === 0 || d.getDay() === 6;
-    const today        = todayISO();
-    const maxDate      = dateAddDays(today, 180);
-
-    this.state.cart.forEach((entry, idx) => {
-      const item    = entry.item;
-      const itemKey = `ci_${idx}`;
-      const minDate = this._minBookingDate();
-      const cfg = {
-        minDate, maxDate,
-        dateFormat: 'Y-m-d',
-        disable: [disableWeekends, ...holidays],
-        locale: typeof flatpickr.l10ns?.th !== 'undefined' ? 'th' : 'default'
-      };
-
-      if (item.isRAD) {
-        const s = document.getElementById(`${itemKey}_start`);
-        const e = document.getElementById(`${itemKey}_end`);
-        if (s) flatpickr(s, cfg);
-        if (e) flatpickr(e, cfg);
-      } else {
-        // All non-RAD: date + time slots
-        const el = document.getElementById(`${itemKey}_date`);
-        if (el) flatpickr(el, { ...cfg, onChange: (_, ds) => App._cartDateChange(itemKey, ds) });
+    const config = {
+      minDate: this._minBookingDate(), maxDate: dateAddDays(todayISO(), 180), dateFormat: 'Y-m-d',
+      disable: [date => date.getDay() === 0 || date.getDay() === 6, ...this.state.holidays],
+      locale: typeof flatpickr.l10ns?.th !== 'undefined' ? 'th' : 'default'
+    };
+    this.state.cart.forEach((entry, index) => {
+      const key = 'ci_' + index;
+      const date = document.getElementById(key + '_date');
+      date.onchange = null;
+      flatpickr(date, { ...config, onChange: (_, value) => this._scheduleDateChanged(key, value) });
+      const end = document.getElementById(key + '_end');
+      if (end) {
+        end.onchange = null;
+        flatpickr(end, { ...config, onChange: () => this._checkCustomAvailability(key) });
       }
     });
   },
@@ -881,72 +849,46 @@ window.App = {
     ).join('');
 
     const itemsHtml = this.state.cart.map((entry, idx) => {
+      entry.scheduleRequest = (entry.scheduleRequest || 0) + 1;
       const item    = entry.item;
-    const cat     = CAT_CONFIG[item.category] || {};
-    const isRAD   = item.isRAD;
+      const cat     = CAT_CONFIG[item.category] || {};
+      const isRAD   = item.isRAD;
       const isChemical = item.category === 'chemical';
       const itemKey = `ci_${idx}`;
       const minDate = this._minBookingDate();
 
-      let dateFields = '';
-      if (isRAD) {
-        dateFields = `
-          <div class="info-box accent" style="margin-bottom:10px;padding:10px 12px;font-size:12px;">${t('form.radBadge')}</div>
-          <div class="form-row" style="margin-bottom:10px;">
-            <div class="form-group" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">${t('form.startDate')} <span class="required">*</span></label>
-              <input type="date" class="form-input" id="${itemKey}_start" min="${minDate}" max="${maxDate}" onchange="App._applyDuration('${itemKey}')">
-            </div>
-            <div class="form-group" style="margin-bottom:0;">
-              <label class="form-label" style="font-size:12px;">${t('form.startTime')} <span class="required">*</span></label>
-              <input type="time" class="form-input" id="${itemKey}_start_time" value="09:00" min="09:00" max="16:00" step="3600" onchange="App._applyDuration('${itemKey}')">
-            </div>
-          </div>
-          <div class="form-row" style="margin-bottom:0;">
-            <div class="form-group" style="margin-bottom:10px;">
-              <label class="form-label" style="font-size:12px;">${t('form.endDate')} <span class="required">*</span></label>
-              <input type="date" class="form-input" id="${itemKey}_end" min="${minDate}" max="${maxDate}" onchange="document.getElementById('${itemKey}_duration').value='custom'">
-            </div>
-            <div class="form-group" style="margin-bottom:10px;">
-              <label class="form-label" style="font-size:12px;">${t('form.endTime')} <span class="required">*</span></label>
-              <input type="time" class="form-input" id="${itemKey}_end_time" value="16:00" min="09:00" max="16:00" step="3600" onchange="document.getElementById('${itemKey}_duration').value='custom'">
-            </div>
+      const dateFields = `
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" id="${itemKey}_date_label" for="${itemKey}_date">${t('form.bookDate')} <span class="required">*</span></label>
+            <input type="date" class="form-input" id="${itemKey}_date" min="${minDate}" max="${maxDate}"
+              onchange="App._scheduleDateChanged('${itemKey}', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label" for="${itemKey}_duration">${t('form.duration')}</label>
-            <select class="form-select" id="${itemKey}_duration" onchange="App._applyDuration('${itemKey}')">
-              <option value="custom">${t('form.customDuration')}</option>
-              ${[1, 2, 3].map(hours => `<option value="${hours}">${t('slot.' + hours + 'h')}</option>`).join('')}
+            <select class="form-select" id="${itemKey}_duration" onchange="App._scheduleModeChanged('${itemKey}')">
+              ${[1,2,3].map(hours => `<option value="${hours}">${t('slot.' + hours + 'h')}</option>`).join('')}
+              ${isRAD ? `<option value="custom">${t('form.customDuration')}</option>` : ''}
             </select>
-            <div class="form-hint">${t('form.hint3days')}</div>
-          </div>`;
-      } else {
-        // All non-RAD items (instrument, glassware, scientific, chemical): date + time slots
-        dateFields = `
-          <div class="form-group" style="margin-bottom:10px;">
-            <label class="form-label" style="font-size:12px;">${t('form.bookDate')} <span class="required">*</span></label>
-            <input type="date" class="form-input" id="${itemKey}_date" min="${minDate}" max="${maxDate}"
-              onchange="App._cartDateChange('${itemKey}', this.value)">
-            <div class="form-hint">${t('form.hint3days')}</div>
           </div>
-          <div id="${itemKey}_slots_group" style="display:none;margin-bottom:10px;">
-            <label class="form-label" style="font-size:12px;">${t('form.timeSlot')} <span class="required">*</span></label>
-            <div class="time-slots" id="${itemKey}_slots" style="flex-wrap:wrap;gap:6px;"></div>
+        </div>
+        <div class="form-group" id="${itemKey}_slots_group" style="display:none;">
+          <label class="form-label">${t('form.timeSlot')}</label>
+          <div class="time-slots" id="${itemKey}_slots"></div>
+        </div>
+        ${isRAD ? `<div id="${itemKey}_custom" class="custom-schedule" hidden>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label" for="${itemKey}_start_time">${t('form.startTime')}</label>
+              <input type="time" class="form-input" id="${itemKey}_start_time" value="09:00" min="09:00" max="16:00" step="3600" onchange="App._checkCustomAvailability('${itemKey}')"></div>
+            <div class="form-group"><label class="form-label" for="${itemKey}_end">${t('form.endDate')}</label>
+              <input type="date" class="form-input" id="${itemKey}_end" min="${minDate}" max="${maxDate}" onchange="App._checkCustomAvailability('${itemKey}')"></div>
           </div>
-          ${!isChemical ? `
-          <div class="form-group" style="margin-bottom:10px;">
-            <label class="form-label" style="font-size:12px;">${t('form.qty')} <span class="required">*</span>
-              ${item.maxQty > 0 ? `<span style="font-weight:400;color:var(--text-3);">(${t('form.inStock')} ${item.maxQty} ${t('equip.unit.qty')})</span>` : ''}
-            </label>
-            <input type="number" class="form-input" id="${itemKey}_qty" min="1" max="${item.maxQty || 9999}" value="1" placeholder="${t('form.qty.ph')}">
-          </div>` : ''}
-          ${isChemical && item.detail ? `
-            <div class="cart-section-divider">${t('cart.div.chem')}</div>
-            <div class="info-box" style="margin-bottom:10px;padding:10px 12px;font-size:12px;background:var(--bg);">
-               ${escHtml(item.detail)}
-            </div>
-          ` : ''}`;
-      }
+          <div class="form-group"><label class="form-label" for="${itemKey}_end_time">${t('form.endTime')}</label>
+            <input type="time" class="form-input" id="${itemKey}_end_time" value="16:00" min="09:00" max="16:00" step="3600" onchange="App._checkCustomAvailability('${itemKey}')"></div>
+        </div>` : ''}
+        ${!isChemical ? `<div class="form-group"><label class="form-label" for="${itemKey}_qty">${t('form.qty')} <span class="form-hint">(${t('equip.inStock')} ${item.maxQty})</span></label>
+          <input type="number" class="form-input" id="${itemKey}_qty" min="1" max="${item.maxQty}" value="1" onchange="App._scheduleDateChanged('${itemKey}', document.getElementById('${itemKey}_date').value)"></div>` : ''}
+        <p class="schedule-availability form-hint" id="${itemKey}_availability" aria-live="polite">${t('form.chooseSchedule')}</p>`;
 
       return `
         <div class="cart-item-section" id="cart-item-${itemKey}">
@@ -961,10 +903,7 @@ window.App = {
             <button class="btn-remove-cart" onclick="App._removeFromCart('${escHtml(item.id)}')">${t('cart.remove')}</button>
           </div>
           ${dateFields}
-          ${isRAD && !isChemical ? `<div class="form-group">
-            <label class="form-label" for="${itemKey}_qty">${t('form.qty')}</label>
-            <input type="number" class="form-input" id="${itemKey}_qty" min="1" max="${item.maxQty}" value="1">
-          </div>` : ''}
+
         </div>`;
     }).join('');
 
@@ -1029,7 +968,9 @@ window.App = {
           </div>
 
           <div class="cart-section-divider">${t('cart.div.items')}</div>
+          <p class="schedule-policy">${t('form.scheduleHint')}</p>
           ${itemsHtml}
+          <p class="form-hint">${t('form.availabilityNote')}</p>
         </div>
         <div class="modal-foot" style="justify-content:space-between;">
           <button class="btn btn-secondary" onclick="App._clearCart()">
@@ -1053,65 +994,117 @@ window.App = {
         if (opt) opt.selected = true;
       }
     }
+    this._initCartPickers();
   },
 
-  async _cartDateChange(itemKey, dateStr) {
-    const slotsGroup = document.getElementById(`${itemKey}_slots_group`);
-    const slotsEl    = document.getElementById(`${itemKey}_slots`);
-    if (!slotsGroup || !slotsEl) return;
-    slotsEl.innerHTML = '';
-
-    if (!dateStr) { slotsGroup.style.display = 'none'; return; }
-    if (dateStr < this._minBookingDate() || dateStr > dateAddDays(todayISO(), 180) || !BookingRules.businessDay(dateStr, this.state.holidays)) {
-      slotsGroup.style.display = 'none';
-      showToast('warning', t('toast.invalidDate'), t('form.hint3days'));
-      return;
-    }
-
-    // Fetch all bookings once for conflict display
-    if (this._allBookings.length === 0) {
-      try { this._allBookings = await apiGet('getAllBookings'); } catch (_) {}
-    }
-    if (document.getElementById(`${itemKey}_date`)?.value !== dateStr) return;
-
-    const idx  = parseInt(itemKey.replace('ci_', ''));
-    const item = this.state.cart[idx]?.item;
-    const maxQty = (item?.maxQty) || 1;
-
-    slotsGroup.style.display = '';
-    const slots = [];
-    for (const hours of [1, 2, 3]) {
-      for (let h = 9; h + hours <= 16; h++)
-        slots.push({ start:`${pad(h)}:00`, end:`${pad(h+hours)}:00`, label:`${pad(h)}:00 – ${pad(h+hours)}:00 ${t('slot.' + hours + 'h')}` });
-    }
-    slots.sort((a,b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-
-    slotsEl.innerHTML = slots.map(s => {
-      const remaining = BookingRules.availableQuantity(item?.id, `${dateStr}T${s.start}:00`, `${dateStr}T${s.end}:00`, this._allBookings, maxQty);
-      const full = remaining < 1;
-      return `<button type="button" class="time-slot${full ? ' disabled' : ''}" ${full ? 'disabled' : ''}
-        onclick="App._cartSelectSlot(this, '${itemKey}')" data-start="${dateStr}T${s.start}:00" data-end="${dateStr}T${s.end}:00">${s.label}${full ? ` ${t('slot.full')}` : ''}</button>`;
-    }).join('');
+  _setScheduleMessage(key, message, error = false, retry = false) {
+    const element = document.getElementById(key + '_availability');
+    if (!element) return;
+    element.className = 'schedule-availability ' + (error ? 'form-error' : 'form-hint');
+    element.innerHTML = escHtml(message) + (retry ? ` <button type="button" class="inventory-refresh" onclick="App._scheduleDateChanged('${key}', document.getElementById('${key}_date').value)">${t('mybook.refresh')}</button>` : '');
   },
 
-  _cartSelectSlot(el, itemKey) {
-    document.querySelectorAll(`#${itemKey}_slots .time-slot`).forEach(s => s.classList.remove('selected'));
-    el.classList.add('selected');
+  _scheduleModeChanged(key) {
+    const custom = document.getElementById(key + '_duration').value === 'custom';
+    const fields = document.getElementById(key + '_custom');
+    if (fields) fields.hidden = !custom;
+    document.getElementById(key + '_date_label').innerHTML = t(custom ? 'form.startDate' : 'form.bookDate') + ' <span class="required">*</span>';
+    document.getElementById(key + '_slots').innerHTML = '';
+    document.getElementById(key + '_slots_group').style.display = 'none';
+    this._scheduleDateChanged(key, document.getElementById(key + '_date').value);
   },
 
-  _applyDuration(key) {
-    const startDate = document.getElementById(key + '_start')?.value;
-    const startTime = document.getElementById(key + '_start_time')?.value || '09:00';
-    const hours = Number(document.getElementById(key + '_duration')?.value);
-    if (!startDate || !hours) return;
-    const endHour = Number(startTime.slice(0, 2)) + hours;
-    if (endHour > 16) {
-      showToast('warning', t('toast.invalidDate'), t('validation.time'));
-      document.getElementById(key + '_duration').value = 'custom';
-      return;
+  _scheduleDateChanged(key, date) {
+    if (document.getElementById(key + '_duration').value !== 'custom') return this._cartDateChange(key, date);
+    const end = document.getElementById(key + '_end');
+    if (date && end) {
+      if (end._flatpickr) end._flatpickr.set('minDate', date);
+      else end.min = date;
+      if (!end.value || end.value < date) {
+        if (end._flatpickr) end._flatpickr.setDate(date, false);
+        else end.value = date;
+      }
     }
-    document.getElementById(key + '_end').value = startDate;
-    document.getElementById(key + '_end_time').value = pad(endHour) + ':00';
+    return this._checkCustomAvailability(key);
+  },
+
+  async _cartDateChange(key, date) {
+    const index = Number(key.replace('ci_', ''));
+    const entry = this.state.cart[index];
+    const slots = document.getElementById(key + '_slots');
+    const group = document.getElementById(key + '_slots_group');
+    if (!entry || !slots || !group) return;
+    const selected = slots.querySelector('.selected');
+    const previous = selected ? [selected.dataset.start, selected.dataset.end] : [];
+    slots.innerHTML = ''; group.style.display = 'none';
+    const request = entry.scheduleRequest = (entry.scheduleRequest || 0) + 1;
+    const hours = Number(document.getElementById(key + '_duration').value);
+    if (!date) { this._setScheduleMessage(key, t('form.chooseSchedule')); return; }
+    if (date < this._minBookingDate() || date > dateAddDays(todayISO(), 180) || !BookingRules.businessDay(date, this.state.holidays)) {
+      this._setScheduleMessage(key, t(date < this._minBookingDate() ? 'validation.advance' : 'validation.date'), true); return;
+    }
+    if (![1,2,3].includes(hours)) return;
+    this._setScheduleMessage(key, t('form.checkingAvailability'));
+    try {
+      const bookings = await apiGet('getAllBookings');
+      if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
+      entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
+      const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
+      group.style.display = '';
+      const options = [];
+      for (let hour = 9; hour + hours <= 16; hour++) {
+        const start = `${date}T${pad(hour)}:00:00`, end = `${date}T${pad(hour + hours)}:00:00`;
+        const remaining = BookingRules.availableQuantity(entry.item.id, start, end, bookings, entry.item.maxQty);
+        const disabled = remaining < quantity;
+        const label = remaining === 0 ? t('slot.full') : t('slot.insufficient');
+        options.push(`<button type="button" class="time-slot${disabled ? ' disabled' : ''}" ${disabled ? 'disabled' : ''}
+          onclick="App._cartSelectSlot(this, '${key}')" data-start="${start}" data-end="${end}">${pad(hour)}:00 – ${pad(hour+hours)}:00${disabled ? ` <span>${label}</span>` : ''}</button>`);
+      }
+      slots.innerHTML = options.join('');
+      const prior = Array.from(slots.querySelectorAll('button')).find(button => !button.disabled && button.dataset.start === previous[0] && button.dataset.end === previous[1]);
+      if (prior) this._cartSelectSlot(prior, key);
+      else this._setScheduleMessage(key, t(slots.querySelector('button:not(:disabled)') ? 'form.chooseStartTime' : 'form.noSlots'));
+    } catch (_) {
+      if (entry.scheduleRequest === request && this.state.cart[index] === entry) this._setScheduleMessage(key, t('form.availabilityFailed'), true, true);
+    }
+  },
+
+  _cartSelectSlot(element, key) {
+    document.querySelectorAll('#' + key + '_slots .time-slot').forEach(slot => slot.classList.remove('selected'));
+    element.classList.add('selected');
+    this._showCartAvailability(key, element.dataset.start, element.dataset.end);
+  },
+
+  _showCartAvailability(key, start, end) {
+    const entry = this.state.cart[Number(key.replace('ci_', ''))];
+    const remaining = BookingRules.availableQuantity(entry.item.id, start, end, entry.bookingsSnapshot, entry.item.maxQty);
+    const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
+    const unit = t(entry.item.category === 'instrument' ? 'equip.unit.timed' : 'equip.unit.qty');
+    this._setScheduleMessage(key, `${t('form.availableRange')} ${remaining} / ${entry.item.maxQty} ${unit} · ${t('form.checkedAt')} ${this._formatFetchTime(entry.bookingsFetchedAt)}`, remaining < quantity);
+  },
+
+  async _checkCustomAvailability(key) {
+    const index = Number(key.replace('ci_', ''));
+    const entry = this.state.cart[index];
+    if (!entry) return;
+    const request = entry.scheduleRequest = (entry.scheduleRequest || 0) + 1;
+    const date = document.getElementById(key + '_date').value;
+    const endDate = document.getElementById(key + '_end').value;
+    if (!date || !endDate) { this._setScheduleMessage(key, t('form.chooseSchedule')); return; }
+    const start = date + 'T' + document.getElementById(key + '_start_time').value + ':00';
+    const end = endDate + 'T' + document.getElementById(key + '_end_time').value + ':00';
+    const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
+    const invalid = BookingRules.validate(entry.item, start, end, quantity, this.state.holidays);
+    if (invalid) { this._setScheduleMessage(key, t('validation.' + invalid), true); return; }
+    this._setScheduleMessage(key, t('form.checkingAvailability'));
+    try {
+      const bookings = await apiGet('getAllBookings');
+      if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
+      entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
+      this._showCartAvailability(key, start, end);
+    } catch (_) {
+      if (entry.scheduleRequest === request && this.state.cart[index] === entry) this._setScheduleMessage(key, t('form.availabilityFailed'), true, true);
+    }
   },
 
   async _submitCart() {
@@ -1133,14 +1126,13 @@ window.App = {
     const submissions = [];
     for (let idx = 0; idx < this.state.cart.length; idx++) {
       const { item } = this.state.cart[idx];
-      const cat     = CAT_CONFIG[item.category] || {};
       const isRAD   = item.isRAD;
       const isChemical = item.category === 'chemical';
       const key     = `ci_${idx}`;
       let start = '', end = '', quantity = '', chemDetail = '';
 
-      if (isRAD) {
-        const sd = document.getElementById(`${key}_start`)?.value;
+      if (isRAD && document.getElementById(`${key}_duration`).value === 'custom') {
+        const sd = document.getElementById(`${key}_date`)?.value;
         const st = document.getElementById(`${key}_start_time`)?.value || '09:00';
         const ed = document.getElementById(`${key}_end`)?.value;
         const et = document.getElementById(`${key}_end_time`)?.value   || '16:00';
@@ -1149,7 +1141,7 @@ window.App = {
         end   = `${ed}T${et}:00`;
         if (!isChemical) quantity = document.getElementById(`${key}_qty`)?.value || '1';
       } else {
-        // All non-RAD: date + time slot
+        // Fixed-duration booking: date + time slot
         const slot = document.querySelector(`#${key}_slots .time-slot.selected`);
         if (!slot) { showToast('warning', `${t('toast.selectSlot')} "${item.name}"`, ''); return; }
         start = slot.dataset.start;
@@ -1204,6 +1196,7 @@ window.App = {
       this._allBookings   = [];
       this.closeModal();
       this._renderNavRight();
+      this._refreshCatalogView();
       showToast('success', `${t('toast.submitOk')} ${successCount} ${t('toast.items')}!`, errors.length > 0 ? errors.join('\n') : '');
     }
     if (errors.length > 0 && successCount === 0) {
@@ -1216,7 +1209,7 @@ window.App = {
     this.state.cart = [];
     this.closeModal();
     this._renderNavRight();
-    if (document.getElementById('equip-grid')) this._renderEquipGrid();
+    this._refreshCatalogView();
     showToast('info', t('toast.cartCleared'), '');
   },
 

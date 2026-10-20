@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="js/ui.js"></script>
-  <title>KCIB — ระบบจองเครื่องมือ ภาควิชาวิศวกรรมเคมี สจล.</title>
+  <title>KCIB</title>
   <meta name="description" content="KCIB: ระบบจองเครื่องมือและอุปกรณ์ ภาควิชาวิศวกรรมเคมี คณะวิศวกรรมศาสตร์ สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง">
   <link rel="icon" type="image/png" href="Logo_new.png">
 
@@ -103,15 +103,22 @@
 
 <!-- ===================== PAGES ===================== -->
 <div id="page-home" class="page active">
-  <section class="hero" aria-labelledby="home-title">
-    <div class="hero-inner">
-      <div class="hero-eyebrow" data-i18n="hero.eyebrow">KMITL ChE · ระบบจองอุปกรณ์</div>
-      <h1 class="hero-title" id="home-title" data-i18n="hero.title1">ระบบจองเครื่องมือ</h1>
-      <p class="hero-department" data-i18n="hero.title2">ภาควิชาวิศวกรรมเคมี</p>
-      <p class="hero-sub">KMITL ChE Inventory &amp; Booking System<br><span data-i18n="footer.uni">สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง</span></p>
-      <a class="hero-cta" href="#instrument" data-i18n="hero.cta">ดูเครื่องมือทั้งหมด</a>
+  <div class="catalog-inner">
+    <header class="catalog-header"><h1 id="home-title" data-i18n="hero.title1">ระบบจองเครื่องมือ</h1><p data-i18n="hero.title2">ภาควิชาวิศวกรรมเคมี</p></header>
+    <div class="catalog-search equip-search">
+      <svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 5 5"/></svg>
+      <input id="home-search" type="search" aria-label="ค้นหาชื่ออุปกรณ์ ยี่ห้อ หรือห้อง" placeholder="ค้นหาชื่ออุปกรณ์ ยี่ห้อ หรือห้อง" oninput="if(window.App) App._onHomeSearch(this.value)">
     </div>
-  </section>
+    <div class="catalog-categories">
+      <a class="catalog-category" href="#home" aria-current="page" data-i18n="equip.filterAll">ทั้งหมด</a>
+      <a class="catalog-category" href="#instrument" data-i18n="nav.instrument">เครื่องมือ</a>
+      <a class="catalog-category" href="#glassware" data-i18n="nav.glassware">เครื่องแก้ว</a>
+      <a class="catalog-category" href="#scientific" data-i18n="nav.scientific">อุปกรณ์วิทย์</a>
+      <a class="catalog-category" href="#chemical" data-i18n="nav.chemical">สารเคมี</a>
+    </div>
+    <p class="catalog-policy" data-i18n="form.scheduleHint">จองล่วงหน้า 3 วันทำการ · เวลาใช้งาน 09:00–16:00 น.</p>
+    <p class="inventory-meta" data-i18n="catalog.loading">กำลังดึงรายการอุปกรณ์…</p>
+  </div>
 </div>
 <div id="page-equipment"   class="page"></div>
 <div id="page-my-bookings" class="page"></div>
