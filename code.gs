@@ -28,7 +28,8 @@ const STATUS = {
 };
 
 // ==================== HELPERS ====================
-function ss_()        { return SpreadsheetApp.openById(SHEET_ID); }
+let spreadsheet_;
+function ss_()        { return spreadsheet_ || (spreadsheet_ = SpreadsheetApp.openById(SHEET_ID)); }
 function sh_(name)    { return ss_().getSheetByName(name); }
 
 function jsonOut(obj) {
@@ -43,15 +44,16 @@ function sheetToObjects(sheetName) {
   const rows = sheet.getDataRange().getValues();
   if (rows.length < 2) return [];
   const headers = rows[0].map(function(h) { return String(h).trim(); });
-  return rows.slice(1).map(function(row, ri) {
-    var obj = { _row: ri + 2 };
-    headers.forEach(function(h, i) {
-      obj[h] = row[i] instanceof Date
-        ? Utilities.formatDate(row[i], "Asia/Bangkok", "yyyy-MM-dd'T'HH:mm:ss")
-        : row[i];
-    });
-    return obj;
+  return rows.slice(1).map(function(row, ri) { return bookingRowObject_(headers, row, ri + 2); });
+}
+
+function bookingRowObject_(headers, row, rowNumber) {
+  const obj = { _row: rowNumber };
+  headers.forEach(function(header, index) {
+    obj[header] = row[index] instanceof Date
+      ? Utilities.formatDate(row[index], "Asia/Bangkok", "yyyy-MM-dd'T'HH:mm:ss") : row[index];
   });
+  return obj;
 }
 
 function getHeaders_(sheetName) {
@@ -67,7 +69,7 @@ function doGet(e) {
   const p = e.parameter || {};
   try {
     switch (p.func) {
-      case "init":          return jsonOut(getInitData());
+      case "init":          return jsonOut(getInitData(p.refresh === "1"));
       case "getMyBookings": return jsonOut(getMyBookings(p.email));
       case "getAllBookings": return jsonOut(getAllBookings());
       case "getProfile":    return jsonOut(getProfile(p.email));
@@ -87,6 +89,8 @@ function doPost(e) {
       case "cancelBooking":  return jsonOut(cancelBooking(data));
       case "approveBooking": return jsonOut(approveBooking(data));
       case "rejectBooking":  return jsonOut(rejectBooking(data));
+      case "approveBookings": return jsonOut(changeBookings_(data, false, true));
+      case "rejectBookings":  return jsonOut(changeBookings_(data, true, true));
       case "saveProfile":    return jsonOut(saveProfile(data));
       default:               return jsonOut({ error: "Invalid action: " + data.action });
     }
@@ -97,12 +101,24 @@ function doPost(e) {
 }
 
 // ==================== INIT DATA ====================
-function getInitData() {
-  return {
+function getInitData(refresh) {
+  let cache;
+  const key = "kcib_init_v2";
+  try {
+    cache = CacheService.getScriptCache();
+    if (!refresh) {
+      const saved = cache.get(key);
+      if (saved) return JSON.parse(saved);
+    }
+  } catch (_) {}
+  const data = {
     inventory:   getInventory(),
     holidays:    getHolidays(),
     staffConfig: getStaffConfig()
   };
+  // Only discovery data is cached. Mutations read inventory, holidays and roles fresh.
+  try { if (cache) cache.put(key, JSON.stringify(data), 60); } catch (_) {}
+  return data;
 }
 
 function getInventory() {
@@ -179,7 +195,11 @@ function getAllBookings() {
 function withBookingLock_(operation) {
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
-  try { return operation(); } finally { lock.releaseLock(); }
+  try { return operation(); }
+  finally {
+    try { SpreadsheetApp.flush(); }
+    finally { lock.releaseLock(); }
+  }
 }
 
 function inventoryCategory_(item) {
@@ -274,37 +294,53 @@ function verifiedActor_(data) {
   return { email: identity.email.toLowerCase().trim(), role: data.activeRole };
 }
 
-function bookingActionContext_(data) {
-  const actor = verifiedActor_(data);
-  const booking = getAllBookings().find(function(row) { return String(row.BookingID) === String(data.bookingId); });
-  if (!booking) throw new Error("ไม่พบรายการจอง");
-  return { actor: actor, booking: booking, config: getStaffConfig(), sheet: sh_(SHEETS.BOOKINGS) };
-}
-
-function setBookingValue_(sheet, row, name, value) {
-  const headers = getHeaders_(SHEETS.BOOKINGS);
-  let column = headers.indexOf(name) + 1;
-  if (!column) {
-    column = headers.length + 1;
-    sheet.getRange(1, column).setValue(name);
-  }
-  sheet.getRange(row, column).setValue(value);
-}
-
 function approveBooking(data) {
+  return changeBookings_(data, false, false);
+}
+
+function changeBookings_(data, reject, bulk) {
+  // Remote token verification must not hold the spreadsheet mutation lock.
+  const actor = verifiedActor_(data);
+  const ids = bulk ? data.bookingIds : [data.bookingId];
+  if (!Array.isArray(ids) || !ids.length || ids.length > 200 || ids.some(id => typeof id !== "string" || !id)) {
+    return { success: false, error: "กรุณาระบุรายการจองไม่เกิน 200 รายการ" };
+  }
   return withBookingLock_(function() {
-    const context = bookingActionContext_(data);
-    const b = context.booking, actor = context.actor;
-    if (!BookingRules.canApprove(b, actor.email, actor.role, context.config)) {
-      return { success: false, error: "บทบาทนี้ไม่มีสิทธิ์อนุมัติรายการนี้" };
-    }
-    const next = b.Status === STATUS.P1 ? STATUS.P2 : STATUS.APPROVED;
-    const name = next === STATUS.P2
-      ? (context.config.HEAD_DEPT || []).map(function(person) { return person.name; }).join(", ") || "หัวหน้าภาควิชา"
-      : STATUS.APPROVED;
-    setBookingValue_(context.sheet, b._row, "Status", next);
-    setBookingValue_(context.sheet, b._row, "CurrentApproverName", name);
-    return { success: true };
+    const sheet = sh_(SHEETS.BOOKINGS);
+    const rows = sheet.getDataRange().getValues();
+    const headers = rows[0].map(header => String(header).trim());
+    const idColumn = headers.indexOf("BookingID"), statusColumn = headers.indexOf("Status"), nameColumn = headers.indexOf("CurrentApproverName");
+    if ([idColumn, statusColumn, nameColumn].some(index => index < 0)) throw new Error("โครงสร้างชีตการจองไม่ครบ");
+    const config = getStaffConfig();
+    const bookings = [], errors = [];
+    Array.from(new Set(ids)).forEach(function(id) {
+      const rowIndex = rows.findIndex((row, index) => index > 0 && String(row[idColumn]) === id);
+      if (rowIndex < 0) { errors.push({ bookingId: id, error: "ไม่พบรายการจอง" }); return; }
+      const row = rows[rowIndex], booking = bookingRowObject_(headers, row, rowIndex + 1);
+      const expected = bulk ? (data.expectedStatuses || {})[id] : data.expectedStatus;
+      if (expected && expected !== booking.Status) {
+        errors.push({ bookingId: id, error: "สถานะเปลี่ยนแล้ว กรุณารีเฟรชรายการ" }); return;
+      }
+      if (!BookingRules.canApprove(booking, actor.email, actor.role, config)) {
+        errors.push({ bookingId: id, error: "บทบาทนี้ไม่มีสิทธิ์ดำเนินการกับรายการนี้" }); return;
+      }
+      const status = reject ? STATUS.REJECTED : booking.Status === STATUS.P1 ? STATUS.P2 : STATUS.APPROVED;
+      const name = status === STATUS.P2
+        ? (config.HEAD_DEPT || []).map(person => person.name).join(", ") || "หัวหน้าภาควิชา" : status;
+      // The normal schema has adjacent state columns: one write, no extra header reads.
+      if (Math.abs(statusColumn - nameColumn) === 1) {
+        sheet.getRange(rowIndex + 1, Math.min(statusColumn, nameColumn) + 1, 1, 2)
+          .setValues([statusColumn < nameColumn ? [status, name] : [name, status]]);
+      } else {
+        sheet.getRange(rowIndex + 1, statusColumn + 1).setValue(status);
+        sheet.getRange(rowIndex + 1, nameColumn + 1).setValue(name);
+      }
+      row[statusColumn] = booking.Status = status;
+      row[nameColumn] = booking.CurrentApproverName = name;
+      bookings.push(booking);
+    });
+    if (bulk) return { success: true, bookings: bookings, errors: errors };
+    return bookings.length ? { success: true, booking: bookings[0] } : { success: false, error: errors[0].error };
   });
 }
 
@@ -426,16 +462,7 @@ function testLineReport() {
 
 // ==================== REJECT BOOKING ====================
 function rejectBooking(data) {
-  return withBookingLock_(function() {
-    const context = bookingActionContext_(data);
-    const b = context.booking, actor = context.actor;
-    if (!BookingRules.canApprove(b, actor.email, actor.role, context.config)) {
-      return { success: false, error: "บทบาทนี้ไม่มีสิทธิ์ปฏิเสธรายการนี้" };
-    }
-    setBookingValue_(context.sheet, b._row, "Status", STATUS.REJECTED);
-    setBookingValue_(context.sheet, b._row, "CurrentApproverName", "ปฏิเสธ");
-    return { success: true };
-  });
+  return changeBookings_(data, true, false);
 }
 
 // ==================== SHEET FORMATTING ====================

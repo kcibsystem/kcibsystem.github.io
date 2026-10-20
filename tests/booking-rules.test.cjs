@@ -69,12 +69,16 @@ test('availability counts quantities at peak overlap, ignores rejected and adjac
 function backend() {
   const headers = ['Timestamp','BookingID','Email','Name','Category','ItemName','ItemID','Course','Quantity','Start','End','Note','AdvisorEmail','Status','CurrentApproverName','StudentID','EducationLevel'];
   const rows = [headers.slice()];
+  const metrics = { reads: 0, writes: 0, tokenChecks: 0, tokenChecksUnderLock: 0, initReads: 0 };
+  let locks = 0, releases = 0;
+  const cache = new Map();
   const sheet = {
-    getDataRange: () => ({getValues:()=>rows.map(row=>row.slice())}),
+    getDataRange: () => ({getValues:()=>{metrics.reads++;return rows.map(row=>row.slice());}}),
     getRange: (r,c,rs=1,cs=1) => ({
       getValues:()=>Array.from({length:rs},(_,i)=>Array.from({length:cs},(_,j)=>rows[r+i-1]?.[c+j-1] ?? '')),
       getValue:()=>rows[r-1]?.[c-1] ?? '',
-      setValue:value=>{rows[r-1] ||= [];rows[r-1][c-1]=value;}
+      setValue:value=>{metrics.writes++;rows[r-1] ||= [];rows[r-1][c-1]=value;},
+      setValues:values=>{metrics.writes++;values.forEach((row,i)=>row.forEach((value,j)=>{rows[r+i-1] ||= [];rows[r+i-1][c+j-1]=value;}));}
     }),
     appendRow: row => rows.push(row), getLastRow:()=>rows.length, getLastColumn:()=>rows[0].length
   };
@@ -89,20 +93,20 @@ function backend() {
     constructor(...args) {super(...(args.length?args:[now.getTime()]));}
     static now() {return now.getTime();}
   }
-  let locks = 0, releases = 0;
   const context = vm.createContext({
     Date:FixedDate, console,
-    SpreadsheetApp:{openById:()=>({getSheetByName:()=>sheet})},
+    SpreadsheetApp:{openById:()=>({getSheetByName:()=>sheet}),flush:()=>{}},
     LockService:{getScriptLock:()=>({waitLock:()=>locks++,releaseLock:()=>releases++})},
+    CacheService:{getScriptCache:()=>({get:key=>cache.get(key)||null,put:(key,value)=>cache.set(key,value)})},
     Utilities:{getUuid:()=>String(rows.length),formatDate:d=>new Date(d.getTime()+7*3600000).toISOString().slice(0,19)},
-    UrlFetchApp:{fetch:url=>({getResponseCode:()=>url.endsWith('invalid')?401:200,getContentText:()=>JSON.stringify({
+    UrlFetchApp:{fetch:url=>{metrics.tokenChecks++;if(locks>releases)metrics.tokenChecksUnderLock++;return {getResponseCode:()=>url.endsWith('invalid')?401:200,getContentText:()=>JSON.stringify({
       email:decodeURIComponent(url.split('=').pop()), aud:'334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com',
       iss:'https://accounts.google.com',email_verified:'true',exp:2000000000
-    })})}
+    })};}}
   });
   vm.runInContext(rulesSource + '\n' + fs.readFileSync('code.gs','utf8'), context);
   context.getStaffConfig = () => config;
-  context.getInventory = () => [item,{...item,ID:'glass',Category:'glassware',ItemName:'Beaker'}];
+  context.getInventory = () => {metrics.initReads++;return [item,{...item,ID:'glass',Category:'glassware',ItemName:'Beaker'}];};
   context.getHolidays = () => [];
   context.applyRowFormat_ = () => {};
   const addBooking = overrides => {
@@ -111,7 +115,7 @@ function backend() {
     return obj;
   };
   const action = (email,activeRole) => ({bookingId:'BK1',idToken:email,activeRole,staffEmail:'spoof@kmitl.ac.th'});
-  return {context,rows,config,addBooking,action,lockCounts:()=>[locks,releases]};
+  return {context,rows,config,addBooking,action,metrics,cache,lockCounts:()=>[locks,releases]};
 }
 
 test('backend validates canonical inventory and rejects forged schedules, lead-time and oversubscription', () => {
@@ -168,4 +172,69 @@ test('legacy staff queue displays approved without changing history or entering 
   assert.throws(()=>b.context.approveBooking(b.action('invalid','HEAD_DEPT')));
   assert.equal(b.context.approveBooking(b.action('dual@kmitl.ac.th','HEAD_DEPT')).success,false);
   assert.equal(JSON.stringify(b.rows),before);
+});
+
+test('approval returns the committed row with one booking read/write and verifies identity outside the lock', () => {
+  const b = backend();b.addBooking({Note:'Keep note',Course:'Research'});
+  const result = b.context.approveBooking({...b.action('dual@kmitl.ac.th','ADVISORS'),expectedStatus:'รอที่ปรึกษาอนุมัติ'});
+  assert.equal(result.success,true);
+  assert.equal(result.booking.Status,'รออนุมัติขั้นที่ 2');
+  assert.equal(result.booking.CurrentApproverName,'Head');
+  assert.equal(result.booking.Note,'Keep note');
+  assert.deepEqual([b.metrics.reads,b.metrics.writes,b.metrics.tokenChecks,b.metrics.tokenChecksUnderLock],[1,1,1,0]);
+  const before = JSON.stringify(b.rows);
+  assert.equal(b.context.approveBooking({...b.action('dual@kmitl.ac.th','HEAD_DEPT'),expectedStatus:'รอที่ปรึกษาอนุมัติ'}).success,false);
+  assert.equal(JSON.stringify(b.rows),before);
+  const rejected = b.context.rejectBooking({...b.action('dual@kmitl.ac.th','HEAD_DEPT'),expectedStatus:'รออนุมัติขั้นที่ 2'});
+  assert.equal(rejected.booking.Status,'ปฏิเสธ');
+  assert.deepEqual(b.lockCounts(),[3,3]);
+  const locksBefore=b.lockCounts();
+  assert.throws(()=>b.context.approveBooking(b.action('invalid','ADVISORS')));
+  assert.deepEqual(b.lockCounts(),locksBefore);
+});
+
+test('bulk approval verifies once, shares one booking read, and reports missing, stale and forbidden rows', () => {
+  const b=backend();
+  b.addBooking({});b.addBooking({BookingID:'BK2'});b.addBooking({BookingID:'BK3',AdvisorEmail:'other@kmitl.ac.th'});b.addBooking({BookingID:'BK4'});
+  const result=b.context.changeBookings_({...b.action('dual@kmitl.ac.th','ADVISORS'),bookingIds:['BK1','BK2','BK1','BK3','BK4','missing'],expectedStatuses:{BK4:'รออนุมัติขั้นที่ 2'}},false,true);
+  assert.equal(result.success,true);assert.deepEqual(Array.from(result.bookings,b=>b.BookingID),['BK1','BK2']);assert.equal(result.errors.length,3);
+  assert.deepEqual([b.metrics.reads,b.metrics.writes,b.metrics.tokenChecks,b.metrics.tokenChecksUnderLock],[1,2,1,0]);
+  assert.equal(b.rows[3][13],'รอที่ปรึกษาอนุมัติ');assert.equal(b.rows[4][13],'รอที่ปรึกษาอนุมัติ');
+  assert.deepEqual(b.lockCounts(),[1,1]);
+  assert.equal(b.context.changeBookings_({...b.action('dual@kmitl.ac.th','ADVISORS'),bookingIds:Array(201).fill('BK1')},false,true).success,false);
+});
+
+test('batch writes honor reordered columns and preserve unrelated values', () => {
+  for(const adjacent of [true,false]) {
+    const b=backend();b.addBooking({Note:'Preserve note',StudentID:'123'});
+    // Move the approver column to either side of Status, or to the end.
+    for(const row of b.rows) {
+      const value=row.splice(14,1)[0];row.splice(adjacent?13:row.length,0,value);
+    }
+    const result=b.context.approveBooking(b.action('dual@kmitl.ac.th','ADVISORS'));
+    assert.equal(result.booking.Status,'รออนุมัติขั้นที่ 2');assert.equal(result.booking.CurrentApproverName,'Head');
+    const stored=b.context.getAllBookings()[0];assert.equal(stored.Note,'Preserve note');assert.equal(stored.StudentID,'123');
+    assert.equal(b.metrics.writes,adjacent?1:2);
+  }
+});
+
+test('init caches discovery reads, manual refresh bypasses it, and cached roles never authorize mutations', () => {
+  const b=backend();
+  b.context.getInitData();b.context.getInitData();assert.equal(b.metrics.initReads,1);
+  b.context.getInitData(true);assert.equal(b.metrics.initReads,2);
+  b.cache.set('kcib_init_v2','invalid json');b.context.getInitData();assert.equal(b.metrics.initReads,3);
+  b.addBooking({});b.config.ADVISORS=[];
+  assert.equal(b.context.getInitData().staffConfig.ADVISORS.length,1);
+  assert.equal(b.context.approveBooking(b.action('dual@kmitl.ac.th','ADVISORS')).success,false);
+  assert.equal(b.metrics.writes,0);
+  b.context.CacheService.getScriptCache=()=>{throw new Error('Cache unavailable');};
+  assert.equal(b.context.getInitData().inventory.length,2);
+});
+
+test('pending writes flush before releasing the lock, including on an interrupted batch', () => {
+  const b=backend(),events=[];
+  b.context.LockService.getScriptLock=()=>({waitLock:()=>events.push('lock'),releaseLock:()=>events.push('unlock')});
+  b.context.SpreadsheetApp.flush=()=>events.push('flush');
+  assert.throws(()=>b.context.withBookingLock_(()=>{throw new Error('write failed');}),/write failed/);
+  assert.deepEqual(events,['lock','flush','unlock']);
 });

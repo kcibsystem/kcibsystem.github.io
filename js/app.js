@@ -119,13 +119,13 @@ window.App = {
     await this._refreshInventory();
   },
 
-  async _refreshInventory() {
+  async _refreshInventory(refresh = false) {
     if (this._inventoryRequest) return this._inventoryRequest;
     this.state.inventoryRefreshing = true;
     this._updateInventoryMeta();
     this._inventoryRequest = (async () => {
       try {
-        const data = await apiGet('init');
+        const data = await apiGet('init', refresh ? { refresh: '1' } : {});
         const fetchedAt = Date.now();
         try { sessionStorage.setItem('kcib_init_v1', JSON.stringify({ ts: fetchedAt, data })); } catch (_) {}
         this._applyInitData(data, fetchedAt);
@@ -157,7 +157,7 @@ window.App = {
 
   _inventoryMetaHTML() {
     return `<div class="inventory-meta"><span class="inventory-updated"></span>
-      <button class="inventory-refresh" onclick="App._refreshInventory().catch(() => showToast('error', t('toast.loadFail'), t('toast.loadFailHint')))">${t('mybook.refresh')}</button></div>`;
+      <button class="inventory-refresh" onclick="App._refreshInventory(true).catch(() => showToast('error', t('toast.loadFail'), t('toast.loadFailHint')))">${t('mybook.refresh')}</button></div>`;
   },
 
   _updateInventoryMeta() {
@@ -1059,7 +1059,7 @@ window.App = {
     if (![1,2,3].includes(hours)) return;
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await apiGet('getAllBookings');
+      const bookings = await this._fetchAllBookings();
       if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
       entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
       const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
@@ -1111,7 +1111,7 @@ window.App = {
     if (invalid) { this._setScheduleMessage(key, t('validation.' + invalid), true); return; }
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await apiGet('getAllBookings');
+      const bookings = await this._fetchAllBookings();
       if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
       entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
       this._showCartAvailability(key, start, end);
@@ -1237,7 +1237,7 @@ window.App = {
     try {
       if (this._isStaff()) {
         if (this._allBookings.length === 0) {
-          this._allBookings = await apiGet('getAllBookings');
+          await this._fetchAllBookings();
         }
         this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
       } else {
@@ -1588,7 +1588,7 @@ window.App = {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/><polyline points="9 9 10 9"/></svg>
               ${t('dash.viewSheets')}
             </a>
-            <button class="btn btn-secondary btn-sm" onclick="App._loadDashboard()">${t('dash.refresh')}</button>
+            <button id="dash-refresh" class="btn btn-secondary btn-sm" onclick="App._loadDashboard()">${t('dash.refresh')}</button>
           </div>
         </div>
         <div id="dash-stats" class="dash-v2-stats">
@@ -1609,22 +1609,44 @@ window.App = {
         </div>
       </div>`;
 
+    if (this._allBookings.length) this._renderDashboardData();
     await this._loadDashboard();
   },
 
+  _bookingRevision: 0,
+  _bookingAction: null,
+
+  _fetchAllBookings() {
+    if (this._bookingsRequest) return this._bookingsRequest;
+    const revision = this._bookingRevision;
+    this._bookingsRequest = apiGet('getAllBookings').then(bookings => {
+      // A read started before an approval must not overwrite its confirmed result.
+      if (revision === this._bookingRevision) this._allBookings = bookings;
+      return this._allBookings;
+    }).finally(() => { this._bookingsRequest = null; });
+    return this._bookingsRequest;
+  },
+
+  _renderDashboardData() {
+    if (!document.getElementById('dash-content') || !this._isStaff()) return;
+    this._renderDashStats();
+    const tab = document.querySelector('.dash-v2-tab-btn.active')?.dataset.tab || (this._isApprovalRole() ? 'pending' : 'all');
+    this._renderDashTabContent(tab);
+    document.getElementById('dash-tabs').style.display = '';
+    this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
+    this._updateNotifBadge();
+  },
+
   async _loadDashboard() {
+    const button = document.getElementById('dash-refresh');
+    if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
     try {
-      this._allBookings = await apiGet('getAllBookings');
-      this._renderDashStats();
-      const tab = this._isApprovalRole() ? 'pending' : 'all';
-      document.querySelectorAll('.dash-v2-tab-btn').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
-      this._renderDashTabContent(tab);
-      document.getElementById('dash-tabs').style.display = '';
-      // Recompute staff notification count
-      this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
-      this._updateNotifBadge();
+      await this._fetchAllBookings();
+      this._renderDashboardData();
     } catch (e) {
       showToast('error', t('toast.dashFail'), e.message);
+    } finally {
+      if (button) { button.disabled = false; button.removeAttribute('aria-busy'); }
     }
   },
 
@@ -1687,9 +1709,9 @@ window.App = {
         </span>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);font-weight:700;"
-            onclick="App._approveAllPending()"> ${t('dash.approveAll')} (${items.length})</button>
+            ${this._bookingAction ? 'disabled' : ''} onclick="App._approveAllPending()"> ${t('dash.approveAll')} (${items.length})</button>
           <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border);font-weight:700;"
-            onclick="App._rejectAllPending()"> ${t('dash.rejectAll')} (${items.length})</button>
+            ${this._bookingAction ? 'disabled' : ''} onclick="App._rejectAllPending()"> ${t('dash.rejectAll')} (${items.length})</button>
         </div>
       </div>` : '';
 
@@ -1698,6 +1720,7 @@ window.App = {
       const cat     = CAT_CONFIG[String(b.Category || '').toLowerCase()] || {};
       const start   = b.Start ? String(b.Start).substring(0, 16).replace('T', ' ') : '-';
       const canAct  = this._canApprove(b);
+      const working = this._bookingAction?.ids.has(String(b.BookingID));
 
       // Step label
       const stepLabel = {
@@ -1723,9 +1746,11 @@ window.App = {
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               ${canAct ? `
                 <button class="btn btn-sm" style="background:var(--success-bg);color:var(--success);border:1px solid var(--success-border);"
-                  onclick="App._approveBooking('${escHtml(b.BookingID)}')">${t('dash.approve')}</button>
+                  ${this._bookingAction ? 'disabled' : ''} aria-busy="${!!working && this._bookingAction?.kind === 'approve'}"
+                  onclick="App._approveBooking('${escHtml(b.BookingID)}')">${t(working && this._bookingAction?.kind === 'approve' ? 'toast.approving' : 'dash.approve')}</button>
                 <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:1px solid var(--danger-border);"
-                  onclick="App._rejectBooking('${escHtml(b.BookingID)}')">${t('dash.reject')}</button>
+                  ${this._bookingAction ? 'disabled' : ''} aria-busy="${!!working && this._bookingAction?.kind === 'reject'}"
+                  onclick="App._rejectBooking('${escHtml(b.BookingID)}')">${t(working && this._bookingAction?.kind === 'reject' ? 'toast.rejecting' : 'dash.reject')}</button>
               ` : `<span style="font-size:12px;color:var(--text-3);">${BookingRules.approved.includes(b.Status) ? escHtml(statusDisplay(b.Status)) : escHtml(b.CurrentApproverName || '-')}</span>`}
             </div>
           </td>` : ''}
@@ -1756,70 +1781,61 @@ window.App = {
     return !!u && BookingRules.canApprove(b, u.email, u.role, this.state.staffConfig);
   },
 
-  async _approveBooking(bookingId) {
-    if (!confirm(t('confirm.approve'))) return;
-    const u = this.state.user;
+  _approveBooking(bookingId) {
+    return this._submitBookingAction('approve', [bookingId], false);
+  },
+
+  _rejectBooking(bookingId) {
+    return this._submitBookingAction('reject', [bookingId], false);
+  },
+
+  _approveAllPending() {
+    return this._submitBookingAction('approve', this._allBookings.filter(b => this._canApprove(b)).map(b => b.BookingID), true);
+  },
+
+  _rejectAllPending() {
+    return this._submitBookingAction('reject', this._allBookings.filter(b => this._canApprove(b)).map(b => b.BookingID), true);
+  },
+
+  _applyBookingUpdate(booking) {
+    this._bookingRevision++;
+    const update = rows => rows.map(row => String(row.BookingID) === String(booking.BookingID) ? booking : row);
+    this._allBookings = update(this._allBookings);
+    this.state.bookings = update(this.state.bookings);
+  },
+
+  async _submitBookingAction(kind, ids, bulk) {
+    if (this._bookingAction || !ids.length) return;
+    const bookings = ids.map(id => this._allBookings.find(b => String(b.BookingID) === String(id))).filter(b => b && this._canApprove(b));
+    if (!bookings.length) return;
+    const confirmKey = kind === 'approve' ? (bulk ? 'confirm.approveAll' : 'confirm.approve') : (bulk ? 'confirm.rejectAll' : 'confirm.reject');
+    if (!confirm(t(confirmKey) + (bulk ? ' ' + bookings.length + ' ' + t('toast.items') + '?' : ''))) return;
+    this._bookingAction = { kind, ids: new Set(bookings.map(b => String(b.BookingID))) };
+    this._renderDashboardData();
+    let succeeded = 0;
+    const failures = [];
     try {
-      const result = await apiPost({ action: 'approveBooking', bookingId, staffEmail: u?.email });
-      if (!result.success) throw new Error(result.error || t('toast.credError'));
-      showToast('success', t('toast.approveOk'), '');
-      this._allBookings = [];
-      await this._loadDashboard();
-    } catch (e) {
-      showToast('error', t('toast.approveFail'), e.message);
+      for (let offset = 0; offset < bookings.length; offset += 200) {
+        const batch = bookings.slice(offset, offset + 200);
+        const result = await apiPost(bulk ? {
+          action: kind + 'Bookings', bookingIds: batch.map(b => String(b.BookingID)),
+          expectedStatuses: Object.fromEntries(batch.map(b => [b.BookingID, b.Status]))
+        } : { action: kind + 'Booking', bookingId: String(batch[0].BookingID), expectedStatus: batch[0].Status });
+        if (!result.success) throw new Error(result.error || t('toast.credError'));
+        const updated = bulk ? result.bookings : [result.booking];
+        if (!updated?.length && !bulk) throw new Error(t('toast.credError'));
+        updated.forEach(booking => { this._applyBookingUpdate(booking); succeeded++; });
+        (result.errors || []).forEach(error => failures.push(error.bookingId + ': ' + error.error));
+        this._renderDashboardData();
+      }
+      if (succeeded) showToast(kind === 'approve' ? 'success' : 'info', t(kind === 'approve' ? 'toast.approveOk' : 'toast.rejectOk') + (bulk ? ' ' + succeeded + ' ' + t('toast.items') : ''), failures.join('\n'));
+      else if (failures.length) showToast('error', t(kind === 'approve' ? 'toast.approveFail' : 'toast.rejectFail'), failures.join('\n'));
+    } catch (error) {
+      showToast('error', t(kind === 'approve' ? 'toast.approveFail' : 'toast.rejectFail'), error.message);
+    } finally {
+      this._bookingAction = null;
+      this._renderDashboardData();
     }
-  },
-
-  async _rejectBooking(bookingId) {
-    if (!confirm(t('confirm.reject'))) return;
-    const u = this.state.user;
-    try {
-      const result = await apiPost({ action: 'rejectBooking', bookingId, staffEmail: u?.email });
-      if (!result.success) throw new Error(result.error || t('toast.credError'));
-      showToast('info', t('toast.rejectOk'), '');
-      this._allBookings = [];
-      await this._loadDashboard();
-    } catch (e) {
-      showToast('error', t('toast.rejectFail'), e.message);
-    }
-  },
-
-  async _approveAllPending() {
-    const u = this.state.user;
-    const pending = this._allBookings.filter(b => this._canApprove(b));
-    if (pending.length === 0) return;
-    if (!confirm(`${t('confirm.approveAll')} ${pending.length} ${t('toast.items')}?`)) return;
-
-    let ok = 0, fail = 0;
-    showToast('info', `${t('toast.approving')} ${pending.length} ${t('toast.items')}...`, '');
-    for (const b of pending) {
-      try {
-        const r = await apiPost({ action: 'approveBooking', bookingId: b.BookingID, staffEmail: u?.email });
-        if (r.success) ok++; else fail++;
-      } catch { fail++; }
-    }
-    this._allBookings = [];
-    await this._loadDashboard();
-    showToast('success', `${t('toast.approveOk')} ${ok} ${t('toast.items')}${fail > 0 ? ` (${t('toast.failCount')} ${fail})` : ''}`, '');
-  },
-
-  async _rejectAllPending() {
-    const u = this.state.user;
-    const pending = this._allBookings.filter(b => this._canApprove(b));
-    if (pending.length === 0) return;
-    if (!confirm(`${t('confirm.rejectAll')} ${pending.length} ${t('toast.items')}?`)) return;
-
-    let ok = 0, fail = 0;
-    showToast('info', `${t('toast.rejecting')} ${pending.length} ${t('toast.items')}...`, '');
-    for (const b of pending) {
-      try {
-        const r = await apiPost({ action: 'rejectBooking', bookingId: b.BookingID, staffEmail: u?.email });
-        if (r.success) ok++; else fail++;
-      } catch { fail++; }
-    }
-    this._allBookings = [];
-    await this._loadDashboard();
-    showToast('info', `${t('toast.rejectOk')} ${ok} ${t('toast.items')}${fail > 0 ? ` (${t('toast.failCount')} ${fail})` : ''}`, '');
   },
 
   /* ================================================== MODAL */
@@ -1974,6 +1990,7 @@ function jwtDecode(token) {
   } catch { return null; }
 }
 
+const pendingApiGets = new Map();
 function apiGet(func, params = {}) {
   if (!SCRIPT_URL || SCRIPT_URL.includes('YOUR_')) {
     return Promise.reject(new Error('กรุณาตั้งค่า SCRIPT_URL ในไฟล์ index.html'));
@@ -1981,9 +1998,14 @@ function apiGet(func, params = {}) {
   const url = new URL(SCRIPT_URL);
   url.searchParams.set('func', func);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  return fetch(url.toString())
+  const key = url.toString();
+  if (pendingApiGets.has(key)) return pendingApiGets.get(key);
+  const request = fetch(key)
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-    .then(d => { if (d && d.error) throw new Error(d.error); return d; });
+    .then(d => { if (d && d.error) throw new Error(d.error); return d; })
+    .finally(() => pendingApiGets.delete(key));
+  pendingApiGets.set(key, request);
+  return request;
 }
 
 function apiPost(payload) {
@@ -1994,7 +2016,7 @@ function apiPost(payload) {
     method:  'POST',
     body:    JSON.stringify({ ...payload, idToken: localStorage.getItem('kcib_token'), activeRole: window.App?.state.user?.role }),
     headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-  }).then(r => r.json())
+  }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(d => { if (d && d.error) throw new Error(d.error); return d; });
 }
 
