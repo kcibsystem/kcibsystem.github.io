@@ -538,7 +538,7 @@ window.App = {
 
   _renderHome() {
     document.getElementById('page-home').innerHTML = `
-      <div class="catalog-inner">
+      <div class="catalog-inner catalog-intro">
         <section class="home-intro" aria-labelledby="home-title">
           <div class="home-intro-copy">
             <p class="home-full-name">KMITL ChE Inventory &amp; Booking</p>
@@ -554,7 +554,10 @@ window.App = {
           </div>
         </section>
         <div class="home-booking-policy"><span>${uiIcon('calendar',18)} ${t('home.advance')}</span><span>${uiIcon('clock',18)} ${t('home.hours')}</span></div>
-        <div class="catalog-heading" id="home-catalog"><h2>${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>
+      </div>
+      <section class="home-catalog-section" aria-labelledby="home-catalog-title">
+      <div class="catalog-inner">
+        <div class="catalog-heading" id="home-catalog"><h2 id="home-catalog-title">${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>
         <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
           ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
             aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
@@ -564,7 +567,7 @@ window.App = {
         <details class="booking-guide"><summary>${t('section.howTitle')}</summary>
           <ol>${[1,2,3,4].map(step => `<li><strong>${t('step' + step + '.title')}</strong> ${t('step' + step + '.desc')}</li>`).join('')}</ol>
         </details>
-      </div>`;
+      </div></section>`;
     this._renderHomeGrid();
     this._updateInventoryMeta();
   },

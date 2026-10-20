@@ -100,7 +100,7 @@
 
 <!-- ===================== PAGES ===================== -->
 <div id="page-home" class="page active">
-  <div class="catalog-inner">
+  <div class="catalog-inner catalog-intro">
     <section class="home-intro" aria-labelledby="home-title">
       <div class="home-intro-copy">
         <p class="home-full-name">KMITL ChE Inventory &amp; Booking</p>
@@ -115,7 +115,10 @@
       </div>
     </section>
     <div class="home-booking-policy"><span data-i18n="home.advance">จองล่วงหน้า 3 วันทำการ</span><span data-i18n="home.hours">เวลาใช้งาน 09:00–16:00 น.</span></div>
-    <div class="catalog-heading" id="home-catalog"><h2 data-i18n="home.inventory">เลือกอุปกรณ์ที่ต้องการ</h2></div>
+  </div>
+  <section class="home-catalog-section" aria-labelledby="home-catalog-title">
+  <div class="catalog-inner">
+    <div class="catalog-heading" id="home-catalog"><h2 id="home-catalog-title" data-i18n="home.inventory">เลือกอุปกรณ์ที่ต้องการ</h2></div>
     <div class="catalog-categories">
       <a class="catalog-category" href="#home" aria-current="page" data-i18n="equip.filterAll">ทั้งหมด</a>
       <a class="catalog-category" href="#instrument" data-i18n="nav.instrument">เครื่องมือ</a>
@@ -125,6 +128,7 @@
     </div>
     <p class="inventory-meta" data-i18n="catalog.loading">กำลังดึงรายการอุปกรณ์…</p>
   </div>
+  </section>
 </div>
 <div id="page-equipment"   class="page"></div>
 <div id="page-my-bookings" class="page"></div>
