@@ -301,18 +301,31 @@ input, select, textarea { font-family: inherit; }
 .page.active { display: block; }
 
 /* ===================== CATALOG ===================== */
-.catalog-inner { max-width: 1248px; margin: 0 auto; padding: 32px 24px 48px; }
-.catalog-header { margin-bottom: 20px; }
-.catalog-header h1 { font-size: clamp(26px, 3vw, 34px); font-weight: 600; line-height: 1.45; color: var(--text); }
-.catalog-header p { font-size: 14px; color: var(--text-2); margin-top: 4px; }
-.catalog-search { max-width: 720px; padding: 13px 16px; margin-bottom: 16px; background: var(--surface); }
+.catalog-inner { max-width: 1248px; margin: 0 auto; padding: 0 24px 48px; }
+.home-intro { display: grid; grid-template-columns: 1.05fr 1fr; gap: 40px; align-items: center; padding: 46px 0 36px; }
+.home-intro-copy { min-width: 0; }
+.home-department { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--text-2); font-size: 13px; margin-bottom: 20px; }
+.home-department > span:last-child { color: var(--accent); font-weight: 600; }
+.home-intro h1 { font-size: clamp(36px, 4.1vw, 58px); font-weight: 600; letter-spacing: -1.2px; line-height: 1.32; }
+.home-intro h1 > span { display: block; }
+.home-description { max-width: 440px; margin: 18px 0 24px; font-size: 15px; color: var(--text-2); line-height: 1.85; }
+.catalog-search { padding: 14px 16px; margin-bottom: 14px; background: var(--surface); border-color: var(--border-strong); }
 .catalog-search input { font-size: 15px; }
+.home-browse { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 500; padding: 4px 0; }
+.home-browse:hover { text-decoration: underline; text-underline-offset: 4px; }
+.home-art { --lab-guide: #e3eaec; --lab-ink: #455b66; --lab-shadow: #dce5e8; --lab-metal: #e5edf0; --lab-glass: #ffffffcc; --lab-liquid: #f2ab84; --lab-shine: #fff; --lab-cool: #608b9b; background: #f3f7f8; border-radius: 80px 12px 80px 12px; position: relative; padding: 8px 4px 32px; }
+.lab-illustration { display: block; width: 100%; height: auto; }
+.home-art-caption { position: absolute; bottom: 24px; right: 36px; color: var(--lab-ink); font-size: 11px; }
+.home-booking-policy { display: flex; flex-wrap: wrap; gap: 16px 32px; padding: 16px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); color: var(--text-2); font-size: 13px; }
+.home-booking-policy > span { display: inline-flex; align-items: center; gap: 9px; }
+.home-booking-policy .ui-icon { color: var(--accent); }
+.catalog-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 32px 0 20px; scroll-margin-top: calc(var(--nav-h) + 16px); }
+.catalog-heading h2 { font-size: 22px; font-weight: 600; }
+html[data-theme="dark"] .home-art { --lab-guide: #2e4049; --lab-ink: #b3c9d2; --lab-shadow: #14232b; --lab-metal: #314751; --lab-glass: #263943e6; --lab-liquid: #d78a62; --lab-shine: #7f9ba7; --lab-cool: #8fb6c5; background: #21303a; }
 .catalog-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .catalog-category { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 14px; font: inherit; font-size: 14px; color: var(--text-2); cursor: pointer; }
 .catalog-category:hover { border-color: var(--border-strong); color: var(--text); }
 .catalog-category[aria-pressed="true"], .catalog-category[aria-current="page"] { color: var(--accent); background: var(--accent-light); border-color: var(--accent); }
-.catalog-summary { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 16px; }
-.catalog-policy { font-size: 13px; color: var(--text-2); }
 .inventory-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 12px; color: var(--text-3); }
 .inventory-refresh { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .inventory-refresh:disabled { color: var(--text-3); cursor: wait; text-decoration: none; }
@@ -1617,4 +1630,21 @@ html[data-theme="dark"] .btn-book.btn-in-cart { color: var(--text); }
 .schedule-policy { color: var(--text-2); font-size: 13px; margin-bottom: 16px; line-height: 1.8; }
 .schedule-availability { font-size: 12px; line-height: 1.8; margin-top: 12px; }
 .time-slot span { display: block; font-size: 11px; }
-@media (max-width: 480px) { .catalog-inner { padding: 24px 20px 36px; } .catalog-category { padding: 8px 10px; font-size: 13px; } .eq-card { padding: 16px; } }
+@media (max-width: 900px) {
+  .home-intro { gap: 24px; }
+  .home-intro h1 { font-size: 38px; }
+  .home-description { font-size: 14px; }
+}
+@media (max-width: 680px) {
+  .home-intro { grid-template-columns: 1fr; gap: 24px; padding: 28px 0 24px; }
+  .home-department { margin-bottom: 14px; }
+  .home-intro h1 { font-size: clamp(32px, 7.8vw, 46px); }
+  .home-description { margin: 14px 0 20px; }
+  .home-art { border-radius: 48px 10px 48px 10px; padding: 0 0 24px; }
+  .lab-illustration { max-height: 230px; }
+  .home-art-caption { bottom: 16px; right: 24px; font-size: 10px; }
+  .home-booking-policy { gap: 10px; flex-direction: column; font-size: 12px; }
+  .catalog-heading { padding: 24px 0 16px; }
+  .catalog-heading h2 { font-size: 20px; }
+}
+@media (max-width: 480px) { .catalog-inner { padding: 0 20px 36px; } .catalog-category { padding: 8px 10px; font-size: 13px; } .eq-card { padding: 16px; } }

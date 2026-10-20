@@ -539,20 +539,26 @@ window.App = {
   _renderHome() {
     document.getElementById('page-home').innerHTML = `
       <div class="catalog-inner">
-        <header class="catalog-header">
-          <h1 id="home-title">${t('hero.title1')}</h1>
-          <p>${t('hero.title2')}</p>
-        </header>
-        <div class="catalog-search equip-search">
-          ${uiIcon('search')}
-          <input id="home-search" type="search" aria-label="${t('catalog.search')}" placeholder="${t('catalog.search')}"
-            value="${escHtml(this._homeSearch)}" oninput="App._onHomeSearch(this.value)">
-        </div>
+        <section class="home-intro" aria-labelledby="home-title">
+          <div class="home-intro-copy">
+            <p class="home-department">${t('hero.title2')} <span>KMITL</span></p>
+            <h1 id="home-title"><span>${t('home.headline1')}</span><span>${t('home.headline2')}</span></h1>
+            <p class="home-description">${t('home.description')}</p>
+            <div class="catalog-search equip-search">
+              ${uiIcon('search')}
+              <input id="home-search" type="search" aria-label="${t('catalog.search')}" placeholder="${t('catalog.search')}"
+                value="${escHtml(this._homeSearch)}" oninput="App._onHomeSearch(this.value)">
+            </div>
+            <a class="home-browse" href="#home-catalog" onclick="document.getElementById('home-catalog').scrollIntoView({block:'start'});return false;">${t('home.browse')} ${uiIcon('box',16)}</a>
+          </div>
+          <div class="home-art">${labBenchIllustration()}<span class="home-art-caption">KMITL Chemical Engineering</span></div>
+        </section>
+        <div class="home-booking-policy"><span>${uiIcon('calendar',18)} ${t('home.advance')}</span><span>${uiIcon('clock',18)} ${t('home.hours')}</span></div>
+        <div class="catalog-heading" id="home-catalog"><h2>${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>
         <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
           ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
             aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
         </div>
-        <div class="catalog-summary"><p class="catalog-policy">${t('form.scheduleHint')}</p>${this._inventoryMetaHTML()}</div>
         <p class="catalog-results" id="home-result-count" aria-live="polite"></p>
         <div class="equip-grid" id="home-grid"></div>
         <details class="booking-guide"><summary>${t('section.howTitle')}</summary>

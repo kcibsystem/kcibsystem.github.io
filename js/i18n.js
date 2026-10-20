@@ -4,6 +4,13 @@
 
 const TRANSLATIONS = {
   th: {
+    'home.headline1': 'จองเครื่องมือ',
+    'home.headline2': 'สำหรับงานทดลอง',
+    'home.description': 'เครื่องมือวิเคราะห์ เครื่องแก้ว อุปกรณ์วิทย์ และสารเคมี สำหรับการเรียนและงานวิจัยของคุณ',
+    'home.browse': 'ดูรายการอุปกรณ์',
+    'home.inventory': 'เลือกอุปกรณ์ที่ต้องการ',
+    'home.advance': 'จองล่วงหน้า 3 วันทำการ',
+    'home.hours': 'เวลาใช้งาน 09:00–16:00 น.',
     'slot.insufficient': "จำนวนว่างไม่พอ",
     'catalog.search': "ค้นหาชื่ออุปกรณ์ ยี่ห้อ หรือห้อง",
     'catalog.loading': "กำลังดึงรายการอุปกรณ์…",
@@ -284,6 +291,13 @@ const TRANSLATIONS = {
     'footer.mapLabel': 'ที่ตั้ง CCA Building',
   },
   en: {
+    'home.headline1': 'Your next experiment',
+    'home.headline2': 'starts here.',
+    'home.description': 'Find analytical instruments, glassware, scientific equipment and chemicals for your studies and research.',
+    'home.browse': 'Browse equipment',
+    'home.inventory': 'Find your equipment',
+    'home.advance': 'Book 3 business days ahead',
+    'home.hours': 'Operating hours 09:00–16:00',
     'slot.insufficient': "Not enough units",
     'catalog.search': "Search equipment, brand or room",
     'catalog.loading': "Fetching inventory…",
