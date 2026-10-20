@@ -261,7 +261,7 @@ window.App = {
   /* -------------------------------------------------- NAVBAR */
   _initNavbar() {
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') navClose();
+      if (event.key === 'Escape') { navClose(); closeDropdown(); }
     });
   },
 
@@ -364,7 +364,7 @@ window.App = {
 
   _toggleUserDropdown() {
     const existing = document.getElementById('user-dropdown');
-    if (existing) { existing.remove(); return; }
+    if (existing) { closeDropdown(); return; }
 
     const u = this.state.user;
     if (!u) return;
@@ -411,9 +411,7 @@ window.App = {
       menu.style.right = (window.innerWidth - rect.right) + 'px';
     }
 
-    setTimeout(() => {
-      document.addEventListener('click', closeDropdown, { once: true });
-    }, 0);
+    document.addEventListener('click', _userMenuOutsideClick);
   },
 
   _updateAuthLinks() {
@@ -764,7 +762,7 @@ window.App = {
           <div class="eq-card-icon" style="background:${cat.bgColor};color:${cat.textColor};">${cat.icon}</div>
           <div class="eq-card-info">
             <div class="eq-card-name">${escHtml(item.name)}</div>
-            ${item.id ? `<div class="eq-card-id">${escHtml(item.id)}</div>` : ''}
+            ${item.model && item.model !== '-' ? `<div class="eq-model">${escHtml(item.model)}</div>` : ''}
           </div>
           ${availBadge}
         </div>
@@ -775,7 +773,6 @@ window.App = {
           ${isRAD         ? `<div class="eq-rad-badge">${t('form.radBadge')}</div>` : ''}
         </div>
         <div class="eq-card-foot">
-          <div class="eq-model">${item.model ? escHtml(item.model) : ''}</div>
           ${bookBtnHtml}
         </div>
       </div>`;
@@ -1948,7 +1945,7 @@ function normalizeItem(raw) {
     detail,
     location:    String(raw.Location || raw.location || ''),
     available:   maxQty > 0,
-    model:       String(raw.ItemBrand || raw.Model || raw.model || ''),
+    model:       String(raw.ItemBrand || raw.Model || raw.model || '').trim(),
     maxQty,
     courseLimit: String(raw.CourseLimit || raw.courselimit || ''),
     isRAD:       BookingRules.allowsDateTime(raw)
@@ -2104,9 +2101,17 @@ function navClose() {
   if (!document.getElementById('modal-overlay')?.classList.contains('open')) document.body.style.overflow = '';
 }
 
+function _userMenuOutsideClick(event) {
+  const menu = document.getElementById('user-dropdown');
+  const button = document.getElementById('user-menu-btn');
+  if (menu?.contains(event.target) || button?.contains(event.target)) return;
+  closeDropdown();
+}
+
 function closeDropdown() {
   document.getElementById('user-dropdown')?.remove();
   document.getElementById('user-menu-btn')?.classList.remove('open');
+  document.removeEventListener('click', _userMenuOutsideClick);
 }
 
 /* ====================================================

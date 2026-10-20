@@ -28,17 +28,6 @@
     function handleCredentialResponse(r) { if (window.App) App.handleGoogleLogin(r); }
   </script>
 
-  <!-- Hidden GSI trigger -->
-  <div id="g_id_onload"
-    data-client_id="334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com"
-    data-callback="handleCredentialResponse"
-    data-auto_prompt="false"
-    data-context="signin"
-    data-ux_mode="popup"
-    data-hd="kmitl.ac.th"
-    style="display:none">
-  </div>
-
   <!-- Flatpickr date picker -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -47,6 +36,17 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+<!-- Hidden GSI trigger belongs in the body so the head remains valid. -->
+<div id="g_id_onload"
+  data-client_id="334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com"
+  data-callback="handleCredentialResponse"
+  data-auto_prompt="false"
+  data-context="signin"
+  data-ux_mode="popup"
+  data-hd="kmitl.ac.th"
+  style="display:none">
+</div>
 
 <!-- ===================== NAVBAR ===================== -->
 <nav id="navbar">
@@ -91,6 +91,7 @@
   </div>
   <div class="nav-overlay" id="nav-overlay" onclick="navClose()"></div>
 </nav>
+<script>updateThemeControls();</script>
 
 <!-- ===================== TOAST ===================== -->
 <div id="toast-container"></div>
@@ -101,7 +102,17 @@
 </div>
 
 <!-- ===================== PAGES ===================== -->
-<div id="page-home"        class="page"></div>
+<div id="page-home" class="page active">
+  <section class="hero" aria-labelledby="home-title">
+    <div class="hero-inner">
+      <div class="hero-eyebrow" data-i18n="hero.eyebrow">KMITL ChE · ระบบจองอุปกรณ์</div>
+      <h1 class="hero-title" id="home-title" data-i18n="hero.title1">ระบบจองเครื่องมือ</h1>
+      <p class="hero-department" data-i18n="hero.title2">ภาควิชาวิศวกรรมเคมี</p>
+      <p class="hero-sub">KMITL ChE Inventory &amp; Booking System<br><span data-i18n="footer.uni">สถาบันเทคโนโลยีพระจอมเกล้าเจ้าคุณทหารลาดกระบัง</span></p>
+      <a class="hero-cta" href="#instrument" data-i18n="hero.cta">ดูเครื่องมือทั้งหมด</a>
+    </div>
+  </section>
+</div>
 <div id="page-equipment"   class="page"></div>
 <div id="page-my-bookings" class="page"></div>
 <div id="page-dashboard"   class="page"></div>
