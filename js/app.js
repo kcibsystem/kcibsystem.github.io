@@ -8,7 +8,7 @@
 const CAT_CONFIG = {
   instrument: {
     id: 'instrument', name: 'เครื่องมือ / เครื่องวิเคราะห์', nameShort: 'เครื่องมือ',
-    nameEn: 'Instruments', num: '01', headerBg: '#1e3a6e',
+    nameEn: 'Instruments',
     icon: '🔬', bgColor: '#e0f2fe', textColor: '#0369a1',
     desc: 'เครื่องมือวิเคราะห์และทดสอบสำหรับงานวิจัยและการเรียนการสอน',
     bookingType: 'timed', advanceDays: 3, weekdayOnly: true,
@@ -16,21 +16,21 @@ const CAT_CONFIG = {
   },
   glassware: {
     id: 'glassware', name: 'เครื่องแก้ว', nameShort: 'เครื่องแก้ว',
-    nameEn: 'Glassware', num: '02', headerBg: '#4a1d7a',
+    nameEn: 'Glassware',
     icon: '🧪', bgColor: '#f3e8ff', textColor: '#7c3aed',
     desc: 'อุปกรณ์เครื่องแก้วสำหรับการทดลองในห้องปฏิบัติการ',
     bookingType: 'quantity'
   },
   scientific: {
     id: 'scientific', name: 'อุปกรณ์วิทยาศาสตร์', nameShort: 'อุปกรณ์วิทย์',
-    nameEn: 'Scientific', num: '03', headerBg: '#1a4d2e',
+    nameEn: 'Scientific',
     icon: '⚗️', bgColor: '#dcfce7', textColor: '#16a34a',
     desc: 'อุปกรณ์วิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
     bookingType: 'quantity'
   },
   chemical: {
     id: 'chemical', name: 'สารเคมี', nameShort: 'สารเคมี',
-    nameEn: 'Chemicals', num: '04', headerBg: '#7c2d12',
+    nameEn: 'Chemicals',
     icon: '🧫', bgColor: '#fff7ed', textColor: '#c2410c',
     desc: 'สารเคมีสำหรับการทดลองในห้องปฏิบัติการ',
     bookingType: 'quantity'
@@ -63,12 +63,8 @@ window.App = {
     // Attach navbar events
     this._initNavbar();
 
-    // Interactive enhancements (ripple, scroll-reveal observer)
-    this._initGlobalInteractions();
-
     // Hash routing
     window.addEventListener('hashchange', () => this._route());
-    window.addEventListener('scroll', () => this._handleScroll(), { passive: true });
 
     // Load data from Apps Script
     try {
@@ -80,8 +76,7 @@ window.App = {
 
     // Hide loading overlay
     const overlay = document.getElementById('loading-overlay');
-    overlay.classList.add('hidden');
-    setTimeout(() => overlay.remove(), 600);
+    overlay.remove();
 
     // Route
     this._route();
@@ -296,7 +291,7 @@ window.App = {
           <div class="mobile-user-card">
             ${av}
             <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.givenName||u.name.split(' ')[0]}</div>
+              <div style="font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.givenName||u.name.split(' ')[0]}</div>
               <div style="font-size:11px;color:var(--accent);font-weight:600;">${t('role.' + u.role)}</div>
             </div>
             <button onclick="navClose();App.logout();" class="mobile-logout-btn">${t('logout')}</button>
@@ -436,11 +431,6 @@ window.App = {
     }
   },
 
-  _handleScroll() {
-    const nav = document.getElementById('navbar');
-    if (nav) nav.classList.toggle('scrolled', window.scrollY > 60);
-  },
-
   /* -------------------------------------------------- ROUTING */
   navigate(page) {
     window.location.hash = '#' + page;
@@ -476,23 +466,21 @@ window.App = {
 
     el.innerHTML = `
       <!-- HERO -->
-      <section class="hero" id="hero-section">
-        <div class="hero-spotlight" id="hero-spotlight"></div>
-        <canvas id="hero-canvas"></canvas>
-        <img src="Logo_new.png" alt="KCIB" class="hero-logo">
+      <section class="hero" aria-labelledby="home-title">
+        <div class="hero-inner">
         <div class="hero-eyebrow">${t('hero.eyebrow')}</div>
-        <h1 class="hero-title">${t('hero.title1')}<br><span>${t('hero.title2')}</span></h1>
+        <h1 class="hero-title" id="home-title">${t('hero.title1')}</h1>
+        <p class="hero-department">${t('hero.title2')}</p>
         <p class="hero-sub">${t('hero.sub')}</p>
         ${u
           ? `<div class="hero-welcome">
                ${u.picture ? `<img src="${u.picture}" alt="" referrerpolicy="no-referrer">` : ''}
                ${t('hero.welcome')}, ${u.givenName || u.name.split(' ')[0]}
              </div>`
-          : `<a href="#instrument" class="hero-cta" onclick="App.navigate('instrument');return false;">
-               ${t('hero.cta')} <span>→</span>
-             </a>`
+          : ''
         }
-        <div class="hero-scroll">↓</div>
+        <a href="#categories" class="hero-cta" onclick="document.getElementById('categories').scrollIntoView();return false;">${t('hero.cta')}</a>
+        </div>
       </section>
 
       <!-- NOTICE -->
@@ -501,22 +489,21 @@ window.App = {
       <!-- STATS -->
       <section class="section">
         <div class="section-inner">
-          <div class="stats-row reveal-group">
+          <div class="stats-row">
             ${[
               { num: countFor('instrument'), label: t('stat.instrument') },
               { num: countFor('glassware'),  label: t('stat.glassware') },
               { num: countFor('scientific'), label: t('stat.scientific') },
               { num: inv.filter(i => i.available).length, label: t('stat.available') },
             ].map(s => `
-              <div class="stat-card reveal">
-                <div class="stat-num" data-target="${s.num}">0</div>
+              <div class="stat-card">
+                <div class="stat-num">${s.num}</div>
                 <div class="stat-label">${s.label}</div>
               </div>`).join('')}
           </div>
 
-          <div class="section-label reveal">${t('section.catLabel')}</div>
-          <h2 class="section-title reveal">${t('section.catTitle')}</h2>
-          <p class="section-desc reveal">
+          <h2 class="section-title" id="categories">${t('section.catTitle')}</h2>
+          <p class="section-desc">
             ${t('section.catDesc')}<br>
             <span class="realtime-ts">
               <span class="realtime-dot"></span>
@@ -524,16 +511,16 @@ window.App = {
             </span>
           </p>
 
-          <div class="cat-grid reveal-group">
+          <div class="cat-grid">
             ${Object.values(CAT_CONFIG).map(cat => {
               const name = t(`cat.${cat.id}.name`);
               const desc = t(`cat.${cat.id}.desc`);
               return `
-              <a class="cat-card reveal" href="#${cat.id}" onclick="App.navigate('${cat.id}');return false;">
+              <a class="cat-card" href="#${cat.id}" onclick="App.navigate('${cat.id}');return false;">
                 <div class="cat-card-top">
                   <div class="cat-icon" style="background:${cat.bgColor};color:${cat.textColor};">${cat.icon}</div>
                   <div class="cat-info">
-                    <div class="cat-name" style="color:${cat.textColor};">${name}</div>
+                    <div class="cat-name">${name}</div>
                     <div class="cat-desc">${desc}</div>
                   </div>
                 </div>
@@ -553,18 +540,16 @@ window.App = {
       <!-- HOW TO -->
       <section class="section section-alt">
         <div class="section-inner">
-          <div class="section-label reveal">${t('section.howLabel')}</div>
-          <h2 class="section-title reveal">${t('section.howTitle')}</h2>
-          <div class="steps-grid reveal-group">
+          <h2 class="section-title">${t('section.howTitle')}</h2>
+          <div class="steps-grid">
             ${[
-              { n:'1', icon:'🔑', title: t('step1.title'), desc: t('step1.desc') },
-              { n:'2', icon:'🔍', title: t('step2.title'), desc: t('step2.desc') },
-              { n:'3', icon:'📋', title: t('step3.title'), desc: t('step3.desc') },
-              { n:'4', icon:'✅', title: t('step4.title'), desc: t('step4.desc') },
+              { n:'1', title: t('step1.title'), desc: t('step1.desc') },
+              { n:'2', title: t('step2.title'), desc: t('step2.desc') },
+              { n:'3', title: t('step3.title'), desc: t('step3.desc') },
+              { n:'4', title: t('step4.title'), desc: t('step4.desc') },
             ].map(s => `
-              <div class="step-card reveal">
+              <div class="step-card">
                 <div class="step-num">${s.n}</div>
-                <div class="step-icon">${s.icon}</div>
                 <div class="step-title">${s.title}</div>
                 <div class="step-desc">${s.desc}</div>
               </div>`).join('')}
@@ -572,156 +557,6 @@ window.App = {
         </div>
       </section>
     `;
-
-    this._initCanvasNetwork();
-    this._initHeroInteractions();
-    this._initReveal();
-    this._initTilt();
-    this._animateCounters();
-  },
-
-  _initCanvasNetwork() {
-    const canvas = document.getElementById('hero-canvas');
-    if (!canvas) return;
-    const ctx  = canvas.getContext('2d');
-    const hero = document.getElementById('hero-section');
-    const resize = () => { canvas.width = hero.offsetWidth; canvas.height = hero.offsetHeight; };
-    resize();
-    window.addEventListener('resize', resize, { passive: true });
-
-    const N = 45, MAX_DIST = 130;
-    const pts = Array.from({ length: N }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      vx: (Math.random() - .5) * .35,
-      vy: (Math.random() - .5) * .35,
-      r: 1.5 + Math.random() * 1.5,
-    }));
-
-    let raf;
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const p of pts) {
-        p.x = (p.x + p.vx + canvas.width)  % canvas.width;
-        p.y = (p.y + p.vy + canvas.height) % canvas.height;
-      }
-      for (let i = 0; i < N; i++) {
-        for (let j = i + 1; j < N; j++) {
-          const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
-          const d  = Math.sqrt(dx * dx + dy * dy);
-          if (d < MAX_DIST) {
-            ctx.strokeStyle = `rgba(255,109,56,${((1 - d / MAX_DIST) * .16).toFixed(3)})`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(pts[i].x, pts[i].y);
-            ctx.lineTo(pts[j].x, pts[j].y);
-            ctx.stroke();
-          }
-        }
-      }
-      for (const p of pts) {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,109,56,0.38)';
-        ctx.fill();
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-
-    const pause  = () => { if (raf) { cancelAnimationFrame(raf); raf = null; } };
-    const resume = () => { if (!raf) raf = requestAnimationFrame(draw); };
-
-    // Pause when tab hidden, resume when visible
-    document.addEventListener('visibilitychange', () => document.hidden ? pause() : resume());
-
-    // Pause when hero scrolled off-screen
-    new IntersectionObserver(([e]) => e.isIntersecting ? resume() : pause(), { threshold: 0 })
-      .observe(hero);
-
-    // Stop entirely when canvas removed from DOM
-    new MutationObserver(() => {
-      if (!document.contains(canvas)) { pause(); }
-    }).observe(document.body, { childList: true, subtree: false });
-  },
-
-  _initHeroInteractions() {
-    const hero = document.getElementById('hero-section');
-    const cta  = hero?.querySelector('.hero-cta');
-    if (!hero) return;
-
-    hero.addEventListener('mousemove', e => {
-      const r = hero.getBoundingClientRect();
-      hero.style.setProperty('--mx', ((e.clientX - r.left) / r.width  * 100).toFixed(1) + '%');
-      hero.style.setProperty('--my', ((e.clientY - r.top)  / r.height * 100).toFixed(1) + '%');
-      if (!cta) return;
-      const cr   = cta.getBoundingClientRect();
-      const cx   = cr.left + cr.width / 2, cy = cr.top + cr.height / 2;
-      const dist = Math.hypot(e.clientX - cx, e.clientY - cy);
-      if (dist < 140) {
-        const f  = (140 - dist) / 140 * 10;
-        const tx = (e.clientX - cx) / dist * f;
-        const ty = (e.clientY - cy) / dist * f;
-        cta.style.transform = `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px)`;
-      } else { cta.style.transform = ''; }
-    }, { passive: true });
-
-    hero.addEventListener('mouseleave', () => { if (cta) cta.style.transform = ''; }, { passive: true });
-  },
-
-  _initGlobalInteractions() {
-    // Click ripple on interactive surfaces
-    document.addEventListener('click', e => {
-      const host = e.target.closest('.hero-cta, .cat-card, .btn, .step-card');
-      if (!host) return;
-      const rect = host.getBoundingClientRect();
-      const size = Math.max(rect.width, rect.height) * 2.2;
-      const wave = document.createElement('span');
-      wave.className = 'ripple-wave';
-      wave.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px;`;
-      host.appendChild(wave);
-      setTimeout(() => wave.remove(), 680);
-    }, { passive: true });
-
-    // IntersectionObserver for scroll-reveal
-    this._revealIO = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) { e.target.classList.add('visible'); this._revealIO.unobserve(e.target); }
-      });
-    }, { threshold: 0.10 });
-  },
-
-  _initReveal() {
-    if (!this._revealIO) return;
-    document.querySelectorAll('.reveal').forEach(el => this._revealIO.observe(el));
-  },
-
-
-  _initTilt() {
-    document.querySelectorAll('.cat-card').forEach(card => {
-      card.addEventListener('mousemove', e => {
-        const r = card.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width  - 0.5;
-        const y = (e.clientY - r.top)  / r.height - 0.5;
-        card.style.transform = `perspective(800px) rotateY(${(x * 10).toFixed(1)}deg) rotateX(${(-y * 8).toFixed(1)}deg) translateY(-8px) scale(1.02)`;
-      }, { passive: true });
-      card.addEventListener('mouseleave', () => { card.style.transform = ''; }, { passive: true });
-    });
-  },
-
-  _animateCounters() {
-    const easeOut = t => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
-    document.querySelectorAll('[data-target]').forEach(el => {
-      const target = parseInt(el.dataset.target) || 0;
-      if (!target) { el.textContent = '0'; return; }
-      const duration = 1800, start = performance.now();
-      const tick = now => {
-        const pct = Math.min((now - start) / duration, 1);
-        el.textContent = Math.round(easeOut(pct) * target);
-        if (pct < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
   },
 
   /* ================================================== EQUIPMENT PAGE */
@@ -740,9 +575,8 @@ window.App = {
 
     const el = document.getElementById('page-equipment');
     el.innerHTML = `
-      <div class="bhead-banner" style="--bhead-c:${cat.headerBg}">
+      <div class="bhead-banner">
         <div class="bh-inner">
-          <span class="bh-tag">§ ${cat.num} / ${cat.nameEn.toUpperCase()}</span>
           <h1 class="bh-title">
             ${t(`cat.${catId}.name`)}
             <span class="bh-title-en">${cat.nameEn}</span>
@@ -755,14 +589,14 @@ window.App = {
           <button class="equip-back" onclick="App.navigate('home')">${t('equip.back')}</button>
           <div class="equip-search">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <input type="search" placeholder="${t('equip.search')}" id="equip-search-input"
+            <input type="search" placeholder="${t('equip.search')}" aria-label="${t('equip.search')}" id="equip-search-input"
               oninput="App._onSearch(this.value)">
           </div>
         </div>
       </div>
       <div id="equip-filters" class="equip-filters"></div>
       <div class="equip-content">
-        <div class="equip-grid stagger" id="equip-grid"></div>
+        <div class="equip-grid" id="equip-grid"></div>
       </div>`;
 
     if (!this.state.initLoaded) {
@@ -865,10 +699,10 @@ window.App = {
       return;
     }
 
-    grid.innerHTML = items.map((item, i) => this._equipCardHTML(item, cat, i)).join('');
+    grid.innerHTML = items.map(item => this._equipCardHTML(item, cat)).join('');
   },
 
-  _equipCardHTML(item, cat, idx) {
+  _equipCardHTML(item, cat) {
     const isRAD    = item.isRAD;
     const inCart   = this.state.cart.some(c => c.item.id === item.id);
     const availBadge = item.available
@@ -892,7 +726,7 @@ window.App = {
     }
 
     return `
-      <div class="eq-card card-enter fade-in" style="animation-delay:${idx*0.05}s">
+      <div class="eq-card">
         <div class="eq-card-head">
           <div class="eq-card-icon" style="background:${cat.bgColor};color:${cat.textColor};">${cat.icon}</div>
           <div class="eq-card-info">
@@ -2210,6 +2044,7 @@ function navToggle() {
   if (!links) return;
   const open = links.classList.toggle('open');
   ham?.classList.toggle('open', open);
+  ham?.setAttribute('aria-expanded', String(open));
   over?.classList.toggle('active', open);
   if (open) {
     // delay so the toggle-click itself doesn't immediately close
@@ -2222,6 +2057,7 @@ function navToggle() {
 function navClose() {
   document.getElementById('nav-links')?.classList.remove('open');
   document.getElementById('nav-hamburger')?.classList.remove('open');
+  document.getElementById('nav-hamburger')?.setAttribute('aria-expanded', 'false');
   document.getElementById('nav-overlay')?.classList.remove('active');
   document.removeEventListener('click', _navOutsideClick);
 }
