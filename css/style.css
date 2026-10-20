@@ -997,7 +997,21 @@ table.dash-table {
 
 /* ===================== SKELETON ===================== */
 .skeleton {
+  position: relative;
+  overflow: hidden;
   background: var(--surface-muted); border-radius: var(--radius-sm);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--border-strong), transparent);
+  opacity: .55;
+  transform: translateX(-100%);
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer {
+  to { transform: translateX(100%); }
 }
 
 /* ===================== FOOTER ===================== */
