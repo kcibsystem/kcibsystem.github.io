@@ -1077,7 +1077,6 @@ window.App = {
             <div class="form-group">
               <label class="form-label">${t('profile.eduLevel')}</label>
               <select class="form-select" id="cart-edu-level">
-                <option value="">${t('profile.bachelor')}</option>
                 <option value="ปริญญาตรี" ${(this.state.profile?.educationLevel||'ปริญญาตรี')==='ปริญญาตรี'?'selected':''}>
                   ${t('profile.bachelor')}</option>
                 <option value="ปริญญาโท" ${this.state.profile?.educationLevel==='ปริญญาโท'?'selected':''}>
