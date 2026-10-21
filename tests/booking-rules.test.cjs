@@ -98,7 +98,7 @@ function backend() {
     SpreadsheetApp:{openById:()=>({getSheetByName:()=>sheet}),flush:()=>{}},
     LockService:{getScriptLock:()=>({waitLock:()=>locks++,releaseLock:()=>releases++})},
     CacheService:{getScriptCache:()=>({get:key=>cache.get(key)||null,put:(key,value)=>cache.set(key,value)})},
-    Utilities:{getUuid:()=>String(++uuid),formatDate:d=>new Date(d.getTime()+7*3600000).toISOString().slice(0,19)},
+    Utilities:{getUuid:()=>(++uuid).toString(16).padStart(8,'0')+'-0000-4000-8000-000000000000',formatDate:d=>new Date(d.getTime()+7*3600000).toISOString().slice(0,19)},
     UrlFetchApp:{fetch:url=>{metrics.tokenChecks++;if(locks>releases)metrics.tokenChecksUnderLock++;return {getResponseCode:()=>url.endsWith('invalid')?401:200,getContentText:()=>JSON.stringify({
       email:decodeURIComponent(url.split('=').pop()), aud:'334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com',
       iss:'https://accounts.google.com',email_verified:'true',exp:2000000000
@@ -117,6 +117,34 @@ function backend() {
   const action = (email,activeRole) => ({bookingId:'BK1',idToken:email,activeRole,staffEmail:'spoof@kmitl.ac.th'});
   return {context,rows,config,addBooking,action,metrics,cache,lockCounts:()=>[locks,releases]};
 }
+
+test('new bookings use short unique IDs and retry collisions under the booking lock', () => {
+  const b = backend();
+  b.addBooking({BookingID:'BK-ABCDEF12'});
+  const uuids = ['abcdef12-0000-4000-8000-000000000000','12ab34cd-0000-4000-8000-000000000000','ffffffff-0000-4000-8000-000000000000'];
+  b.context.Utilities.getUuid = () => uuids.shift();
+  const result = b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'});
+  assert.equal(result.success,true);
+  assert.equal(result.bookingId,'BK-12AB34CD');
+  assert.match(result.bookingId,/^BK-[0-9A-F]{8}$/);
+  assert.equal(b.rows[1][1],'BK-ABCDEF12');
+  assert.equal(b.rows[2][1],result.bookingId);
+  assert.equal(b.metrics.reads,1);
+  assert.deepEqual(b.lockCounts(),[1,1]);
+});
+
+test('an existing long booking ID remains usable and exhausted collisions do not save a booking', () => {
+  const b = backend();
+  const legacyId = 'BK12345678-1234-4123-8123-123456789abc';
+  b.addBooking({BookingID:legacyId});
+  assert.equal(b.context.cancelBooking({bookingId:legacyId,email:'student@kmitl.ac.th'}).success,true);
+  b.addBooking({BookingID:'BK-ABCDEF12'});
+  b.context.Utilities.getUuid = () => 'abcdef12-0000-4000-8000-000000000000';
+  const count = b.rows.length;
+  assert.throws(()=>b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'}),/สร้างรหัสการจองไม่สำเร็จ/);
+  assert.equal(b.rows.length,count);
+  assert.deepEqual(b.lockCounts(),[2,2]);
+});
 
 test('public calendar includes overlapping active bookings and returns no personal fields', () => {
   const b = backend();

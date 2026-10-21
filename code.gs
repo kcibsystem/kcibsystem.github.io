@@ -251,6 +251,15 @@ function inventoryCategory_(item) {
   return "instrument";
 }
 
+function newBookingId_(bookings) {
+  const existingIds = new Set(bookings.map(function(booking) { return String(booking.BookingID || "").toUpperCase(); }));
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const id = "BK-" + Utilities.getUuid().replace(/-/g, "").slice(0, 8).toUpperCase();
+    if (!existingIds.has(id)) return id;
+  }
+  throw new Error("สร้างรหัสการจองไม่สำเร็จ กรุณาลองอีกครั้ง");
+}
+
 function submitBooking(data) {
   return withBookingLock_(function() {
     const sheet = sh_(SHEETS.BOOKINGS);
@@ -271,14 +280,15 @@ function submitBooking(data) {
       quantity: "จำนวนที่ขอจองต้องเป็นจำนวนเต็มตั้งแต่ 1 และไม่เกินจำนวนในคลัง"
     };
     if (invalid) return { success: false, error: messages[invalid] };
+    const bookings = getAllBookings();
     const remaining = BookingRules.availableQuantity(data.itemId, data.start, data.end,
-      getAllBookings(), Number(item.MaxQuantity || item.maxQty));
+      bookings, Number(item.MaxQuantity || item.maxQty));
     if (quantity > remaining) return { success: false, error: "จำนวนว่างของรายการไม่พอในช่วงเวลานี้ เหลือ " + remaining };
     const advisor = (getStaffConfig().ADVISORS || []).find(function(person) {
       return person.email.toLowerCase() === String(data.advisorEmail || "").trim().toLowerCase();
     });
     if (!advisor) return { success: false, error: "กรุณาเลือกอาจารย์ที่ปรึกษาจากรายการ" };
-    const bookingId = "BK" + Utilities.getUuid();
+    const bookingId = newBookingId_(bookings);
     sheet.appendRow([
       new Date(), bookingId, data.email || "", data.name || "", inventoryCategory_(item),
       item.ItemName || item.Name || item.name || "", String(data.itemId), data.course || "", quantity,
