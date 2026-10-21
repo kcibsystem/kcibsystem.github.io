@@ -101,6 +101,7 @@ const TRANSLATIONS = {
     'validation.duration': "รายการนี้เลือกได้เฉพาะช่วงเวลา 1, 2 หรือ 3 ชั่วโมงในวันเดียวกัน",
     'validation.quantity': "จำนวนต้องเป็นจำนวนเต็มตั้งแต่ 1 และไม่เกินจำนวนในคลัง",
     'validation.studentIdRequired': 'กรุณากรอกรหัสนักศึกษา',
+    'profile.staffIdOptional': 'ไม่บังคับสำหรับอาจารย์และบุคลากรที่มีรายชื่อในระบบ',
     // Nav
     'nav.home':       'หน้าแรก',
     'nav.instrument': 'เครื่องมือ',
@@ -452,6 +453,7 @@ const TRANSLATIONS = {
     'validation.duration': "Choose a 1, 2 or 3 hour slot on the same day.",
     'validation.quantity': "Enter a whole quantity from 1 up to the available stock.",
     'validation.studentIdRequired': 'Please enter your student ID.',
+    'profile.staffIdOptional': 'Optional for teachers and staff listed in the system.',
     // Nav
     'nav.home':       'Home',
     'nav.instrument': 'Instruments',

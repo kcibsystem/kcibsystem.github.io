@@ -203,6 +203,38 @@ test('booking and profile requests reject missing or whitespace-only student IDs
   assert.equal(b.rows[1][b.rows[0].indexOf('StudentID')],'66010380');
 });
 
+test('student ID exemption uses verified identity and current StaffConfig, regardless of selected role', () => {
+  const b = backend();
+  for (const email of ['dual@kmitl.ac.th','staff@kmitl.ac.th','tp2@kmitl.ac.th','viewer@kmitl.ac.th']) {
+    assert.equal(b.context.studentIdOptional_({email:email.toUpperCase(),idToken:email,activeRole:'STUDENT'}),true);
+  }
+  assert.equal(b.context.studentIdOptional_({email:'student@kmitl.ac.th',idToken:'student@kmitl.ac.th',activeRole:'ADVISORS'}),false);
+  assert.equal(b.context.studentIdOptional_({email:'dual@kmitl.ac.th',idToken:'student@kmitl.ac.th',activeRole:'ADVISORS'}),false);
+  assert.equal(b.context.studentIdOptional_({email:'dual@kmitl.ac.th',activeRole:'ADVISORS'}),false);
+  assert.throws(()=>b.context.studentIdOptional_({email:'dual@kmitl.ac.th',idToken:'invalid'}));
+  b.context.getInitData();
+  b.config.STAFF_FLOOR_1 = [];
+  assert.equal(b.context.studentIdOptional_({email:'staff@kmitl.ac.th',idToken:'staff@kmitl.ac.th'}),false);
+});
+
+test('listed staff can book and save profiles without a student ID; spoofed claims cannot', () => {
+  const b = backend();
+  const data = {itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:' ',email:'dual@kmitl.ac.th',idToken:'dual@kmitl.ac.th',activeRole:'STUDENT'};
+  assert.equal(b.context.submitBooking(data).success,true);
+  assert.equal(b.rows[1][b.rows[0].indexOf('StudentID')],'');
+  assert.equal(b.metrics.tokenChecksUnderLock,0);
+  assert.equal(b.context.submitBooking({...data,idToken:'student@kmitl.ac.th'}).success,false);
+  assert.equal(b.context.submitBooking({...data,email:'student@kmitl.ac.th',idToken:'student@kmitl.ac.th',activeRole:'HEAD_DEPT'}).success,false);
+  assert.equal(b.rows.length,2);
+  const profiles = [['Email','StudentID','EducationLevel','UpdatedAt']];
+  b.context.sh_ = () => ({getDataRange:()=>({getValues:()=>profiles}),appendRow:row=>profiles.push(row),getLastRow:()=>profiles.length});
+  assert.equal(b.context.saveProfile({email:data.email,idToken:data.idToken,studentId:''}).success,true);
+  assert.equal(profiles.length,2);
+  assert.equal(profiles[1][1],'');
+  assert.equal(b.context.saveProfile({email:data.email,idToken:'student@kmitl.ac.th',studentId:''}).success,false);
+  assert.equal(profiles.length,2);
+});
+
 test('dual-role teacher selects existing role; advisor then head approve without a staff approval step', () => {
   const b = backend(); b.addBooking({});
   assert.deepEqual(Array.from(rules.rolesFor('DUAL@kmitl.ac.th',b.config)),['ADVISORS','HEAD_DEPT']);

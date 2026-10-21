@@ -312,3 +312,33 @@ test('booking and profile forms block empty student IDs, focus the field and cle
     assert.equal(field.validationMessage,'');
   }
 });
+
+test('staff membership makes student ID optional even in a student role, while a role alone cannot bypass it', async () => {
+  const { app, context, elements } = client();
+  app.state.user = {email:'teacher@kmitl.ac.th',role:'STUDENT'};
+  app.state.staffConfig = {ADVISORS:[{email:'teacher@kmitl.ac.th'}]};
+  const field = element('prof-student-id');
+  field.value = ' ';
+  field.setCustomValidity = message => { field.validationMessage = message; };
+  field.reportValidity = () => { field.reported = true; };
+  elements.set('prof-student-id',field);
+  assert.equal(app._requiresStudentId(),false);
+  assert.equal(app._readStudentId('prof-student-id'),'');
+  assert.equal(field.reported,undefined);
+  let payload;
+  context.apiPost = async data => { payload = data; return {success:true}; };
+  context.showToast = () => {};
+  app.closeModal = () => {};
+  await app._saveProfile();
+  assert.equal(payload.studentId,'');
+  assert.equal(payload.email,'teacher@kmitl.ac.th');
+  let prompted = false;
+  app._renderProfileModal = () => { prompted = true; };
+  context.apiGet = async () => ({studentId:''});
+  await app._loadProfile();
+  assert.equal(prompted,false);
+  app.state.user = {email:'student@kmitl.ac.th',role:'ADVISORS'};
+  assert.equal(app._requiresStudentId(),true);
+  assert.equal(app._readStudentId('prof-student-id'),null);
+  assert.equal(field.reported,true);
+});

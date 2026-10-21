@@ -262,7 +262,7 @@ function newBookingId_(bookings) {
 
 function submitBooking(data) {
   const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
-  if (!studentId) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
+  if (!studentId && !studentIdOptional_(data)) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
   return withBookingLock_(function() {
     const sheet = sh_(SHEETS.BOOKINGS);
     if (!sheet) throw new Error("Sheet 'ALlBooking' not found");
@@ -349,6 +349,13 @@ function verifiedActor_(data) {
   return { email: identity.email.toLowerCase().trim(), role: data.activeRole };
 }
 
+function studentIdOptional_(data) {
+  if (!data.idToken) return false;
+  const actor = verifiedActor_(data);
+  return actor.email === String(data.email || "").toLowerCase().trim()
+    && BookingRules.rolesFor(actor.email, getStaffConfig()).length > 0;
+}
+
 function approveBooking(data) {
   return changeBookings_(data, false, false);
 }
@@ -417,7 +424,7 @@ function getProfile(email) {
 function saveProfile(data) {
   if (!data.email) return { success: false, error: "email required" };
   const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
-  if (!studentId) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
+  if (!studentId && !studentIdOptional_(data)) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
   const lc = data.email.toLowerCase().trim();
   var sheet = sh_(SHEETS.PROFILES);
   if (!sheet) {

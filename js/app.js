@@ -314,6 +314,10 @@ window.App = {
     return ['ADVISORS', 'HEAD_DEPT'].includes(this.state.user?.role);
   },
 
+  _requiresStudentId() {
+    return !this.state.user || BookingRules.rolesFor(this.state.user.email, this.state.staffConfig).length === 0;
+  },
+
   /* -------------------------------------------------- NAVBAR */
   _initNavbar() {
     document.addEventListener('keydown', event => {
@@ -973,6 +977,7 @@ window.App = {
   },
 
   _renderCartModal() {
+    const studentIdRequired = this._requiresStudentId();
     const box      = document.getElementById('modal-box');
     const advisors = this.state.staffConfig['ADVISORS'] || [];
     const today    = todayISO();
@@ -1063,10 +1068,11 @@ window.App = {
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="cart-student-id">${t('profile.studentId')} <span class="required">*</span></label>
-              <input class="form-input" id="cart-student-id" type="text" required aria-required="true" oninput="this.setCustomValidity('')"
+              <label class="form-label" for="cart-student-id">${t('profile.studentId')} ${studentIdRequired ? '<span class="required">*</span>' : ''}</label>
+              <input class="form-input" id="cart-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}" oninput="this.setCustomValidity('')"
                 placeholder="${t('profile.studentIdPh')}"
                 value="${escHtml(this.state.profile?.studentId || '')}">
+              ${studentIdRequired ? '' : `<p class="form-hint">${t('profile.staffIdOptional')}</p>`}
             </div>
             <div class="form-group">
               <label class="form-label">${t('profile.eduLevel')}</label>
@@ -1244,10 +1250,12 @@ window.App = {
   _readStudentId(inputId) {
     const input = document.getElementById(inputId);
     const studentId = (input?.value || '').trim();
-    input?.setCustomValidity(studentId ? '' : t('validation.studentIdRequired'));
-    if (!studentId) {
+    const missing = !studentId && this._requiresStudentId();
+    input?.setCustomValidity(missing ? t('validation.studentIdRequired') : '');
+    if (missing) {
       input?.focus();
       input?.reportValidity();
+      return null;
     }
     return studentId;
   },
@@ -1265,7 +1273,7 @@ window.App = {
     const studentId      = this._readStudentId('cart-student-id');
     const educationLevel = document.getElementById('cart-edu-level')?.value || 'ปริญญาตรี';
 
-    if (!studentId) return;
+    if (studentId === null) return;
     if (!advisor) { showToast('warning', t('toast.selectAdvisor'), ''); return; }
 
     // Collect per-item data and validate
@@ -1984,11 +1992,12 @@ window.App = {
     try {
       const res = await apiGet('getProfile', { email: u.email });
       this.state.profile = res;
-      if (!res.studentId) this._renderProfileModal(false);
+      if (!res.studentId && this._requiresStudentId()) this._renderProfileModal(false);
     } catch (_) {}
   },
 
   _renderProfileModal(isEdit) {
+    const studentIdRequired = this._requiresStudentId();
     const p = this.state.profile || {};
     const levels = ['ปริญญาตรี', 'ปริญญาโท', 'ปริญญาเอก'];
     const opts = levels.map(lv =>
@@ -2004,10 +2013,11 @@ window.App = {
         <div class="modal-body">
           ${!isEdit ? `<p style="color:var(--text-muted);margin-bottom:16px;font-size:14px;">${t('profile.completeDesc')}</p>` : ''}
           <div class="form-group">
-            <label class="form-label" for="prof-student-id">${t('profile.studentId')} <span class="required">*</span></label>
-            <input class="form-input" id="prof-student-id" type="text" required aria-required="true" oninput="this.setCustomValidity('')"
+            <label class="form-label" for="prof-student-id">${t('profile.studentId')} ${studentIdRequired ? '<span class="required">*</span>' : ''}</label>
+            <input class="form-input" id="prof-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}" oninput="this.setCustomValidity('')"
               placeholder="${t('profile.studentIdPh')}"
               value="${escHtml(p.studentId||'')}">
+            ${studentIdRequired ? '' : `<p class="form-hint">${t('profile.staffIdOptional')}</p>`}
           </div>
           <div class="form-group">
             <label class="form-label">${t('profile.eduLevel')}</label>
@@ -2027,7 +2037,7 @@ window.App = {
     const u = this.state.user;
     if (!u) return;
     const studentId = this._readStudentId('prof-student-id');
-    if (!studentId) return;
+    if (studentId === null) return;
     const educationLevel = document.getElementById('prof-edu-level')?.value || 'ปริญญาตรี';
     try {
       await apiPost({ action: 'saveProfile', email: u.email, studentId, educationLevel });
