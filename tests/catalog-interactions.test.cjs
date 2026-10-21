@@ -287,3 +287,28 @@ test('calendar booking requires sign-in and preselects the chosen date and avail
   assert.equal(selected.key,'ci_0');
   assert.equal(app.state.cart.length,1);
 });
+
+test('booking and profile forms block empty student IDs, focus the field and clear the error after correction', async () => {
+  const { app, context, elements } = client();
+  app.state.user = {email:'student@kmitl.ac.th',role:'STUDENT'};
+  let posts = 0;
+  context.apiPost = async () => { posts++; return {success:true}; };
+  for (const [fieldId,submit] of [['cart-student-id',()=>app._submitCart()],['prof-student-id',()=>app._saveProfile()]]) {
+    const field = element(fieldId);
+    field.setCustomValidity = message => { field.validationMessage = message; };
+    field.reportValidity = () => { field.reported = true; return false; };
+    field.focus = () => { field.focused = true; };
+    elements.set(fieldId,field);
+    for (const value of ['',' \t ']) {
+      field.value = value;
+      await submit();
+      assert.equal(posts,0);
+      assert.equal(field.focused,true);
+      assert.equal(field.reported,true);
+      assert.match(field.validationMessage,/รหัสนักศึกษา/);
+    }
+    field.value = ' 66010380 ';
+    assert.equal(app._readStudentId(fieldId),'66010380');
+    assert.equal(field.validationMessage,'');
+  }
+});

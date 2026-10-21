@@ -123,7 +123,7 @@ test('new bookings use short unique IDs and retry collisions under the booking l
   b.addBooking({BookingID:'BK-ABCDEF12'});
   const uuids = ['abcdef12-0000-4000-8000-000000000000','12ab34cd-0000-4000-8000-000000000000','ffffffff-0000-4000-8000-000000000000'];
   b.context.Utilities.getUuid = () => uuids.shift();
-  const result = b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'});
+  const result = b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:'66010380'});
   assert.equal(result.success,true);
   assert.equal(result.bookingId,'BK-12AB34CD');
   assert.match(result.bookingId,/^BK-[0-9A-F]{8}$/);
@@ -141,7 +141,7 @@ test('an existing long booking ID remains usable and exhausted collisions do not
   b.addBooking({BookingID:'BK-ABCDEF12'});
   b.context.Utilities.getUuid = () => 'abcdef12-0000-4000-8000-000000000000';
   const count = b.rows.length;
-  assert.throws(()=>b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'}),/สร้างรหัสการจองไม่สำเร็จ/);
+  assert.throws(()=>b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:'66010380'}),/สร้างรหัสการจองไม่สำเร็จ/);
   assert.equal(b.rows.length,count);
   assert.deepEqual(b.lockCounts(),[2,2]);
 });
@@ -172,7 +172,7 @@ test('calendar rejects invalid, reversed, missing and oversized date ranges', ()
 
 test('backend validates canonical inventory and rejects forged schedules, lead-time and oversubscription', () => {
   const b = backend();
-  const data = {itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'};
+  const data = {itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:'66010380'};
   assert.equal(b.context.submitBooking({...data,start:'2026-10-22T09:00:00',end:'2026-10-22T12:00:00'}).success,false);
   assert.equal(b.context.submitBooking({...data,itemName:'HPLC',category:'glassware',end:'2026-10-26T12:00:00'}).success,false);
   assert.equal(b.context.submitBooking({...data,quantity:6}).success,false);
@@ -182,6 +182,25 @@ test('backend validates canonical inventory and rejects forged schedules, lead-t
   assert.equal(b.context.submitBooking({...data,quantity:2}).success,false);
   assert.equal(b.context.submitBooking({...data,start:'2026-10-23T12:00:00',end:'2026-10-23T15:00:00',quantity:5}).success,true);
   assert.deepEqual(b.lockCounts(),[7,7]);
+});
+
+test('booking and profile requests reject missing or whitespace-only student IDs before any writes', () => {
+  const b = backend();
+  for (const studentId of [undefined,null,'',' \t\n ',{},[]]) {
+    const result = b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId});
+    assert.equal(result.success,false);
+    assert.match(result.error,/กรุณากรอกรหัสนักศึกษา/);
+    const profile = b.context.saveProfile({email:'student@kmitl.ac.th',studentId});
+    assert.equal(profile.success,false);
+    assert.match(profile.error,/กรุณากรอกรหัสนักศึกษา/);
+  }
+  assert.equal(b.rows.length,1);
+  assert.equal(b.metrics.writes,0);
+  assert.equal(b.metrics.reads,0);
+  assert.deepEqual(b.lockCounts(),[0,0]);
+  const result = b.context.submitBooking({itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:' 66010380 '});
+  assert.equal(result.success,true);
+  assert.equal(b.rows[1][b.rows[0].indexOf('StudentID')],'66010380');
 });
 
 test('dual-role teacher selects existing role; advisor then head approve without a staff approval step', () => {

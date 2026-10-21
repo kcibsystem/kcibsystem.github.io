@@ -1063,8 +1063,8 @@ window.App = {
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label">${t('profile.studentId')}</label>
-              <input class="form-input" id="cart-student-id" type="text"
+              <label class="form-label" for="cart-student-id">${t('profile.studentId')} <span class="required">*</span></label>
+              <input class="form-input" id="cart-student-id" type="text" required aria-required="true" oninput="this.setCustomValidity('')"
                 placeholder="${t('profile.studentIdPh')}"
                 value="${escHtml(this.state.profile?.studentId || '')}">
             </div>
@@ -1241,6 +1241,17 @@ window.App = {
     }
   },
 
+  _readStudentId(inputId) {
+    const input = document.getElementById(inputId);
+    const studentId = (input?.value || '').trim();
+    input?.setCustomValidity(studentId ? '' : t('validation.studentIdRequired'));
+    if (!studentId) {
+      input?.focus();
+      input?.reportValidity();
+    }
+    return studentId;
+  },
+
   async _submitCart() {
     const u = this.state.user;
     if (!u) return;
@@ -1251,9 +1262,10 @@ window.App = {
       ? (document.getElementById('cart-course-other')?.value.trim() || t('course.other'))
       : _courseRaw;
     const note           = document.getElementById('cart-note')?.value || '';
-    const studentId      = document.getElementById('cart-student-id')?.value || '';
+    const studentId      = this._readStudentId('cart-student-id');
     const educationLevel = document.getElementById('cart-edu-level')?.value || 'ปริญญาตรี';
 
+    if (!studentId) return;
     if (!advisor) { showToast('warning', t('toast.selectAdvisor'), ''); return; }
 
     // Collect per-item data and validate
@@ -1992,8 +2004,8 @@ window.App = {
         <div class="modal-body">
           ${!isEdit ? `<p style="color:var(--text-muted);margin-bottom:16px;font-size:14px;">${t('profile.completeDesc')}</p>` : ''}
           <div class="form-group">
-            <label class="form-label">${t('profile.studentId')}</label>
-            <input class="form-input" id="prof-student-id" type="text"
+            <label class="form-label" for="prof-student-id">${t('profile.studentId')} <span class="required">*</span></label>
+            <input class="form-input" id="prof-student-id" type="text" required aria-required="true" oninput="this.setCustomValidity('')"
               placeholder="${t('profile.studentIdPh')}"
               value="${escHtml(p.studentId||'')}">
           </div>
@@ -2012,10 +2024,11 @@ window.App = {
   },
 
   async _saveProfile() {
-    const studentId      = document.getElementById('prof-student-id')?.value.trim() || '';
-    const educationLevel = document.getElementById('prof-edu-level')?.value || 'ปริญญาตรี';
     const u = this.state.user;
     if (!u) return;
+    const studentId = this._readStudentId('prof-student-id');
+    if (!studentId) return;
+    const educationLevel = document.getElementById('prof-edu-level')?.value || 'ปริญญาตรี';
     try {
       await apiPost({ action: 'saveProfile', email: u.email, studentId, educationLevel });
       this.state.profile = { studentId, educationLevel };

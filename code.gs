@@ -261,6 +261,8 @@ function newBookingId_(bookings) {
 }
 
 function submitBooking(data) {
+  const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
+  if (!studentId) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
   return withBookingLock_(function() {
     const sheet = sh_(SHEETS.BOOKINGS);
     if (!sheet) throw new Error("Sheet 'ALlBooking' not found");
@@ -293,7 +295,7 @@ function submitBooking(data) {
       new Date(), bookingId, data.email || "", data.name || "", inventoryCategory_(item),
       item.ItemName || item.Name || item.name || "", String(data.itemId), data.course || "", quantity,
       new Date(BookingRules.timestamp(data.start)), new Date(BookingRules.timestamp(data.end)), data.note || "",
-      advisor.email, STATUS.P1, advisor.name, data.studentId || "", data.educationLevel || ""
+      advisor.email, STATUS.P1, advisor.name, studentId, data.educationLevel || ""
     ]);
     applyRowFormat_(sheet, sheet.getLastRow());
     return { success: true, bookingId: bookingId };
@@ -414,6 +416,8 @@ function getProfile(email) {
 
 function saveProfile(data) {
   if (!data.email) return { success: false, error: "email required" };
+  const studentId = typeof data.studentId === "string" ? data.studentId.trim() : "";
+  if (!studentId) return { success: false, error: "กรุณากรอกรหัสนักศึกษา" };
   const lc = data.email.toLowerCase().trim();
   var sheet = sh_(SHEETS.PROFILES);
   if (!sheet) {
@@ -425,14 +429,14 @@ function saveProfile(data) {
   const now   = new Date();
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][0] || "").toLowerCase().trim() === lc) {
-      sheet.getRange(i + 1, 2).setValue(data.studentId      || "");
+      sheet.getRange(i + 1, 2).setValue(studentId);
       sheet.getRange(i + 1, 3).setValue(data.educationLevel || "");
       sheet.getRange(i + 1, 4).setValue(now);
       applyRowFormat_(sheet, i + 1);
       return { success: true };
     }
   }
-  sheet.appendRow([lc, data.studentId || "", data.educationLevel || "", now]);
+  sheet.appendRow([lc, studentId, data.educationLevel || "", now]);
   applyRowFormat_(sheet, sheet.getLastRow());
   return { success: true };
 }
