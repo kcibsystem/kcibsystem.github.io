@@ -146,6 +146,9 @@ window.App = {
       this._renderLocationFilters();
       this._renderEquipGrid();
     }
+    const focusedSearch = document.activeElement?.id;
+    if (focusedSearch === 'home-search') this._showSuggestions('home');
+    if (focusedSearch === 'equip-search-input') this._showSuggestions('equip');
     this._updateInventoryMeta();
   },
 
@@ -517,7 +520,14 @@ window.App = {
     window.location.hash = '#' + page;
   },
 
+  goHome() {
+    navClose();
+    if (!document.getElementById('page-home').classList.contains('active')) this.navigate('home');
+    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  },
+
   _route() {
+    this._closeSuggestions();
     const hash  = window.location.hash.slice(1) || 'home';
     const page  = hash.split('?')[0];
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -531,6 +541,7 @@ window.App = {
       case 'chemical':    this._renderEquipment('chemical');   showPage('page-equipment');  break;
       case 'my-bookings': this._renderMyBookings();         showPage('page-my-bookings'); break;
       case 'dashboard':   this._renderDashboard();          showPage('page-dashboard');   break;
+      case 'about': case 'privacy': case 'terms': this._renderInfoPage(page); showPage('page-info'); break;
       default:            this._renderHome();             showPage('page-home');
     }
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -539,6 +550,21 @@ window.App = {
   /* ================================================== HOME PAGE */
   _homeSearch: '',
   _homeCategory: '',
+  _homeTeamProject2: false,
+  _highlightedItem: '',
+
+  _renderInfoPage(page) {
+    const sections = page === 'about' ? ['purpose', 'use', 'contact']
+      : page === 'privacy' ? ['data', 'access', 'storage', 'services', 'contact']
+        : ['account', 'booking', 'equipment', 'contact'];
+    document.getElementById('page-info').innerHTML = `<article class="site-info">
+      <a class="home-browse" href="#home">${t('equip.back')}</a>
+      <h1>${t('info.' + page + '.title')}</h1>
+      <p class="site-info-intro">${t('info.' + page + '.intro')}</p>
+      ${sections.map(section => `<section><h2>${t('info.' + page + '.' + section + '.title')}</h2>
+        <p>${t('info.' + page + '.' + section)}</p></section>`).join('')}
+    </article>`;
+  },
 
   _renderHome() {
     document.getElementById('page-home').innerHTML = `
@@ -549,10 +575,12 @@ window.App = {
             <p class="home-department">${t('hero.title2')} <span>KMITL</span></p>
             <h1 id="home-title"><span>${t('home.headline1')}</span><span>${t('home.headline2')}</span></h1>
             <p class="home-description">${t('home.description')}</p>
-            <div class="catalog-search equip-search">
+            <div class="catalog-search equip-search search-with-suggestions">
               ${uiIcon('search')}
               <input id="home-search" type="search" aria-label="${t('catalog.search')}" placeholder="${t('catalog.search')}"
-                value="${escHtml(this._homeSearch)}" oninput="App._onHomeSearch(this.value)">
+                value="${escHtml(this._homeSearch)}" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="home-suggestions"
+                oninput="App._onHomeSearch(this.value)" onfocus="App._showSuggestions('home')" onblur="App._closeSuggestions()" onkeydown="App._suggestionKeydown(event,'home')">
+              <div id="home-suggestions" class="search-suggestions" role="listbox" aria-label="${t('catalog.suggestions')}" hidden></div>
             </div>
             <a class="home-browse" href="#home-catalog" onclick="document.getElementById('home-catalog').scrollIntoView({block:'start'});return false;">${t('home.browse')} ${uiIcon('box',16)}</a>
           </div>
@@ -566,6 +594,8 @@ window.App = {
           ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
             aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
         </div>
+        <div class="catalog-course-filter"><button class="filter-chip ${this._homeTeamProject2 ? 'active' : ''}" id="home-team-project-filter"
+          aria-pressed="${this._homeTeamProject2}" onclick="App._toggleHomeTeamProject2()">Team Project 2</button></div>
         <p class="catalog-results" id="home-result-count" aria-live="polite"></p>
         <div class="equip-grid" id="home-grid"></div>
         <details class="booking-guide"><summary>${t('section.howTitle')}</summary>
@@ -578,6 +608,16 @@ window.App = {
 
   _onHomeSearch(value) {
     this._homeSearch = value;
+    this._highlightedItem = '';
+    this._renderHomeGrid();
+    this._showSuggestions('home');
+  },
+
+  _toggleHomeTeamProject2() {
+    this._homeTeamProject2 = !this._homeTeamProject2;
+    const button = document.getElementById('home-team-project-filter');
+    button.classList.toggle('active', this._homeTeamProject2);
+    button.setAttribute('aria-pressed', String(this._homeTeamProject2));
     this._renderHomeGrid();
   },
 
@@ -594,9 +634,7 @@ window.App = {
       grid.innerHTML = this.state.initError ? `<p class="equip-empty">${t('toast.loadFail')}</p>` : this._skeletonGrid(6);
       return;
     }
-    const search = this._homeSearch.trim().toLowerCase();
-    const items = this.state.inventory.filter(item => (!this._homeCategory || item.category === this._homeCategory)
-      && (!search || [item.name, item.model, item.location, item.detail].some(value => value.toLowerCase().includes(search))));
+    const items = this._catalogItems('home');
     document.getElementById('home-result-count').textContent = `${items.length} ${t('toast.items')}`;
     grid.innerHTML = items.length ? items.map(item => this._equipCardHTML(item, CAT_CONFIG[item.category])).join('')
       : `<div class="equip-empty"><p>${t('equip.noResults')}</p></div>`;
@@ -630,10 +668,12 @@ window.App = {
       <div class="equip-search-sticky">
         <div class="equip-controls">
           <button class="equip-back" onclick="App.navigate('home')">${t('equip.back')}</button>
-          <div class="equip-search">
+          <div class="equip-search search-with-suggestions">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
             <input type="search" placeholder="${t('equip.search')}" aria-label="${t('equip.search')}" id="equip-search-input"
-              oninput="App._onSearch(this.value)">
+              autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="equip-suggestions"
+              oninput="App._onSearch(this.value)" onfocus="App._showSuggestions('equip')" onblur="App._closeSuggestions()" onkeydown="App._suggestionKeydown(event,'equip')">
+            <div id="equip-suggestions" class="search-suggestions" role="listbox" aria-label="${t('catalog.suggestions')}" hidden></div>
           </div>
         </div>
       </div>
@@ -660,10 +700,10 @@ window.App = {
     const filterEl = document.getElementById('equip-filters');
     if (!filterEl) return;
 
-    // Fixed filters always shown
+    // Named course and location filters.
     const FIXED_FILTERS = [
       { label: 'Team Project 2', icon: '', match: (i) =>
-          /team.?project.?2/i.test(i.courseLimit) || /team.?project.?2/i.test(i.location) },
+          this._matchesTeamProject2(i) },
       { label: 'CCA Lab-1', icon: '', match: (i) => /cca.?lab.?1/i.test(i.location) },
       { label: 'CCA Lab-3', icon: '', match: (i) => /cca.?lab.?3/i.test(i.location) },
     ];
@@ -678,16 +718,16 @@ window.App = {
     // Only show filters that have matching items
     const activeFixed = FIXED_FILTERS.filter(f => items.some(f.match));
 
-    if (activeFixed.length === 0 && dynamicLocs.length === 0) return;
+    if (activeFixed.length === 0 && dynamicLocs.length === 0) { filterEl.innerHTML = ''; return; }
 
     const cur = this._currentLocationFilter;
     const chip = (label, icon, key) => {
       const on = cur === key;
-      return `<div class="filter-chip ${on ? 'active' : ''}" onclick="App._setLocationFilter('${escHtml(key)}')">
+      return `<button class="filter-chip ${on ? 'active' : ''}" aria-pressed="${on}" data-location="${escHtml(key)}" onclick="App._setLocationFilter(this.dataset.location)">
         ${on ? `<span class="fc-tick">✓</span>` : ''}
         <span class="fc-icon">${icon}</span>
         <span class="fc-label">${escHtml(label)}</span>
-      </div>`;
+      </button>`;
     };
 
     filterEl.innerHTML =
@@ -704,7 +744,88 @@ window.App = {
 
   _onSearch(val) {
     this._currentSearch = val.toLowerCase();
+    this._highlightedItem = '';
     this._renderEquipGrid();
+    this._showSuggestions('equip');
+  },
+
+  _matchesTeamProject2(item) {
+    return /team[\s_-]*project[\s_-]*2/i.test(item.courseLimit) || /team[\s_-]*project[\s_-]*2/i.test(item.location);
+  },
+
+  _catalogItems(scope) {
+    const home = scope === 'home';
+    const category = home ? this._homeCategory : this._currentCategory;
+    const search = (home ? this._homeSearch : this._currentSearch).trim().toLowerCase();
+    const location = home ? '' : this._currentLocationFilter;
+    return this.state.inventory.filter(item => {
+      if (category && item.category !== category) return false;
+      if (home && this._homeTeamProject2 && !this._matchesTeamProject2(item)) return false;
+      if (location === 'Team Project 2' && !this._matchesTeamProject2(item)) return false;
+      if (location && location !== 'Team Project 2') {
+        if (/^cca.?lab/i.test(location)) {
+          if (!new RegExp(location.replace(/-/g, '[- ]?'), 'i').test(item.location)) return false;
+        } else if (item.location !== location) return false;
+      }
+      return !search || [item.name, item.model, item.location, item.detail, item.id]
+        .some(value => String(value || '').toLowerCase().includes(search));
+    });
+  },
+
+  _showSuggestions(scope) {
+    const input = document.getElementById(scope === 'home' ? 'home-search' : 'equip-search-input');
+    const list = document.getElementById(scope + '-suggestions');
+    if (!input || !list) return;
+    this._closeSuggestions();
+    if (!input.value.trim()) return;
+    const items = this.state.initLoaded ? this._catalogItems(scope) : [];
+    list.innerHTML = items.length ? items.map((item, index) => `<button type="button" class="search-suggestion" role="option" tabindex="-1" aria-selected="false"
+      id="${scope}-suggestion-${index}" data-item-id="${escHtml(item.id)}" onmousedown="event.preventDefault()" onclick="App._selectSuggestion(this.dataset.itemId,'${scope}')">
+      <span class="suggestion-name">${escHtml(item.name)}</span>
+      <span class="suggestion-detail">${escHtml([item.model, item.location].filter(Boolean).join(' · '))}</span>
+    </button>`).join('') : `<p class="suggestion-empty" role="status">${t(this.state.initLoaded ? 'equip.noResults' : this.state.initError ? 'toast.loadFail' : 'catalog.loading')}</p>`;
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  },
+
+  _closeSuggestions() {
+    document.querySelectorAll('.search-suggestions').forEach(list => { list.hidden = true; });
+    document.querySelectorAll('[aria-autocomplete="list"]').forEach(input => {
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    });
+  },
+
+  _suggestionKeydown(event, scope) {
+    const list = document.getElementById(scope + '-suggestions');
+    if (event.key === 'Escape') { this._closeSuggestions(); return; }
+    if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return;
+    if (list.hidden && event.key !== 'Enter') this._showSuggestions(scope);
+    if (list.hidden) return;
+    const options = [...list.querySelectorAll('[role="option"]')];
+    if (!options.length) return;
+    event.preventDefault();
+    const current = options.findIndex(option => option.getAttribute('aria-selected') === 'true');
+    if (event.key === 'Enter') {
+      this._selectSuggestion(options[Math.max(0, current)].dataset.itemId, scope);
+      return;
+    }
+    const next = current < 0 ? (event.key === 'ArrowDown' ? 0 : options.length - 1)
+      : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+    options.forEach((option, index) => option.setAttribute('aria-selected', String(index === next)));
+    event.target.setAttribute('aria-activedescendant', options[next].id);
+    options[next].scrollIntoView({ block: 'nearest' });
+  },
+
+  _selectSuggestion(itemId, scope) {
+    this._highlightedItem = itemId;
+    this._closeSuggestions();
+    const grid = document.getElementById(scope + '-grid');
+    grid.querySelectorAll('.eq-card').forEach(card => card.classList.toggle('eq-card-highlighted', card.dataset.itemId === itemId));
+    const card = [...grid.querySelectorAll('.eq-card')].find(card => card.dataset.itemId === itemId);
+    if (!card) return;
+    card.focus({ preventScroll: true });
+    card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
   },
 
   _renderEquipGrid() {
@@ -718,28 +839,7 @@ window.App = {
       return;
     }
 
-    let items = this.state.inventory.filter(i => i.category === catId);
-
-    if (this._currentLocationFilter) {
-      const loc = this._currentLocationFilter;
-      if (/^team.?project.?2$/i.test(loc)) {
-        items = items.filter(i =>
-          /team.?project.?2/i.test(i.courseLimit) || /team.?project.?2/i.test(i.location));
-      } else if (/^cca.?lab/i.test(loc)) {
-        items = items.filter(i => new RegExp(loc.replace(/-/g,'[- ]?'), 'i').test(i.location));
-      } else {
-        items = items.filter(i => i.location === loc);
-      }
-    }
-
-    if (search) {
-      items = items.filter(i =>
-        i.name.toLowerCase().includes(search) ||
-        (i.model   || '').toLowerCase().includes(search) ||
-        (i.detail  || '').toLowerCase().includes(search) ||
-        (i.id      || '').toLowerCase().includes(search)
-      );
-    }
+    const items = this._catalogItems('equip');
 
     if (items.length === 0) {
       grid.innerHTML = `
@@ -760,7 +860,7 @@ window.App = {
       ? `<button class="btn-book" disabled>${t('equip.unavailable')}</button>`
       : inCart ? `<button class="btn-book btn-in-cart" onclick="App._openCart()">${t('equip.inCart')}</button>`
         : `<button class="btn-book" onclick="App._addToCart('${escHtml(item.id)}')">${t('equip.addToCart')}</button>`;
-    return `<article class="eq-card">
+    return `<article class="eq-card${this._highlightedItem === item.id ? ' eq-card-highlighted' : ''}" data-item-id="${escHtml(item.id)}" tabindex="-1">
       <div class="eq-card-info"><h2 class="eq-card-name">${escHtml(item.name)}</h2>
         ${item.model && item.model !== '-' ? `<p class="eq-model">${escHtml(item.model)}</p>` : ''}</div>
       <div class="eq-card-body">
