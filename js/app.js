@@ -1069,7 +1069,7 @@ window.App = {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="cart-student-id">${t('profile.studentId')} ${studentIdRequired ? '<span class="required">*</span>' : ''}</label>
-              <input class="form-input" id="cart-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}" oninput="this.setCustomValidity('')"
+              <input class="form-input" id="cart-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}"
                 placeholder="${t('profile.studentIdPh')}"
                 value="${escHtml(this.state.profile?.studentId || '')}">
               ${studentIdRequired ? '' : `<p class="form-hint">${t('profile.staffIdOptional')}</p>`}
@@ -1251,10 +1251,9 @@ window.App = {
     const input = document.getElementById(inputId);
     const studentId = (input?.value || '').trim();
     const missing = !studentId && this._requiresStudentId();
-    input?.setCustomValidity(missing ? t('validation.studentIdRequired') : '');
     if (missing) {
       input?.focus();
-      input?.reportValidity();
+      showToast('warning', t('validation.studentIdRequired'), '');
       return null;
     }
     return studentId;
@@ -1274,7 +1273,11 @@ window.App = {
     const educationLevel = document.getElementById('cart-edu-level')?.value || 'ปริญญาตรี';
 
     if (studentId === null) return;
-    if (!advisor) { showToast('warning', t('toast.selectAdvisor'), ''); return; }
+    if (!advisor) {
+      document.getElementById('cart-advisor')?.focus();
+      showToast('warning', t('toast.selectAdvisor'), '');
+      return;
+    }
 
     // Collect per-item data and validate
     const submissions = [];
@@ -2014,7 +2017,7 @@ window.App = {
           ${!isEdit ? `<p style="color:var(--text-muted);margin-bottom:16px;font-size:14px;">${t('profile.completeDesc')}</p>` : ''}
           <div class="form-group">
             <label class="form-label" for="prof-student-id">${t('profile.studentId')} ${studentIdRequired ? '<span class="required">*</span>' : ''}</label>
-            <input class="form-input" id="prof-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}" oninput="this.setCustomValidity('')"
+            <input class="form-input" id="prof-student-id" type="text" ${studentIdRequired ? 'required' : ''} aria-required="${studentIdRequired}"
               placeholder="${t('profile.studentIdPh')}"
               value="${escHtml(p.studentId||'')}">
             ${studentIdRequired ? '' : `<p class="form-hint">${t('profile.staffIdOptional')}</p>`}

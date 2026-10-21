@@ -288,14 +288,15 @@ test('calendar booking requires sign-in and preselects the chosen date and avail
   assert.equal(app.state.cart.length,1);
 });
 
-test('booking and profile forms block empty student IDs, focus the field and clear the error after correction', async () => {
+test('missing student IDs and advisors use the same warning toast and focus the missing field', async () => {
   const { app, context, elements } = client();
   app.state.user = {email:'student@kmitl.ac.th',role:'STUDENT'};
   let posts = 0;
+  const notices = [];
+  context.showToast = (...notice) => notices.push(notice);
   context.apiPost = async () => { posts++; return {success:true}; };
   for (const [fieldId,submit] of [['cart-student-id',()=>app._submitCart()],['prof-student-id',()=>app._saveProfile()]]) {
     const field = element(fieldId);
-    field.setCustomValidity = message => { field.validationMessage = message; };
     field.reportValidity = () => { field.reported = true; return false; };
     field.focus = () => { field.focused = true; };
     elements.set(fieldId,field);
@@ -304,30 +305,42 @@ test('booking and profile forms block empty student IDs, focus the field and cle
       await submit();
       assert.equal(posts,0);
       assert.equal(field.focused,true);
-      assert.equal(field.reported,true);
-      assert.match(field.validationMessage,/รหัสนักศึกษา/);
+      assert.equal(field.reported,undefined);
+      assert.equal(notices.at(-1)[0],'warning');
+      assert.match(notices.at(-1)[1],/รหัสนักศึกษา/);
+      assert.equal(notices.at(-1)[2],'');
     }
     field.value = ' 66010380 ';
     assert.equal(app._readStudentId(fieldId),'66010380');
-    assert.equal(field.validationMessage,'');
   }
+  const advisor = element('cart-advisor');
+  advisor.value = '';
+  advisor.focus = () => { advisor.focused = true; };
+  elements.set('cart-advisor',advisor);
+  await app._submitCart();
+  assert.equal(posts,0);
+  assert.equal(advisor.focused,true);
+  assert.equal(notices.at(-1)[0],'warning');
+  assert.match(notices.at(-1)[1],/เลือกอาจารย์/);
+  assert.equal(notices.at(-1)[2],'');
 });
 
 test('staff membership makes student ID optional even in a student role, while a role alone cannot bypass it', async () => {
   const { app, context, elements } = client();
+  const notices = [];
+  context.showToast = (...notice) => notices.push(notice);
   app.state.user = {email:'teacher@kmitl.ac.th',role:'STUDENT'};
   app.state.staffConfig = {ADVISORS:[{email:'teacher@kmitl.ac.th'}]};
   const field = element('prof-student-id');
   field.value = ' ';
-  field.setCustomValidity = message => { field.validationMessage = message; };
   field.reportValidity = () => { field.reported = true; };
   elements.set('prof-student-id',field);
   assert.equal(app._requiresStudentId(),false);
   assert.equal(app._readStudentId('prof-student-id'),'');
   assert.equal(field.reported,undefined);
+  assert.equal(notices.length,0);
   let payload;
   context.apiPost = async data => { payload = data; return {success:true}; };
-  context.showToast = () => {};
   app.closeModal = () => {};
   await app._saveProfile();
   assert.equal(payload.studentId,'');
@@ -340,5 +353,6 @@ test('staff membership makes student ID optional even in a student role, while a
   app.state.user = {email:'student@kmitl.ac.th',role:'ADVISORS'};
   assert.equal(app._requiresStudentId(),true);
   assert.equal(app._readStudentId('prof-student-id'),null);
-  assert.equal(field.reported,true);
+  assert.equal(field.reported,undefined);
+  assert.equal(notices.at(-1)[0],'warning');
 });
