@@ -22,10 +22,10 @@ const CAT_CONFIG = {
     bookingType: 'quantity'
   },
   scientific: {
-    id: 'scientific', name: 'รายการวิทยาศาสตร์', nameShort: 'รายการวิทย์',
+    id: 'scientific', name: 'อุปกรณ์วิทยาศาสตร์', nameShort: 'อุปกรณ์วิทย์',
     nameEn: 'Scientific',
     icon: uiIcon('scientific'), bgColor: 'var(--cat-green-bg)', textColor: 'var(--cat-green)',
-    desc: 'รายการวิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
+    desc: 'อุปกรณ์วิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
     bookingType: 'quantity'
   },
   chemical: {
