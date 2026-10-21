@@ -354,7 +354,7 @@ const TRANSLATIONS = {
     'footer.mapLabel': 'ที่ตั้ง CCA Building',
   },
   en: {
-    "nav.calendar": "Booking calendar",
+    "nav.calendar": "Booking Calendar",
     "catalog.sort": "Sort by",
     "catalog.sort.default": "Original order",
     "catalog.sort.nameAsc": "Name A–Z",
