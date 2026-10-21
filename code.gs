@@ -73,6 +73,7 @@ function doGet(e) {
       case "getMyBookings": return jsonOut(getMyBookings(p.email));
       case "getAllBookings": return jsonOut(getDisplayBookings_(p.refresh === "1"));
       case "getProfile":    return jsonOut(getProfile(p.email));
+      case "getCalendar":   return jsonOut(getCalendar(p.from, p.to, p.refresh === "1"));
       default:              return jsonOut({ error: "Invalid function: " + (p.func || "(none)") });
     }
   } catch (err) {
@@ -178,6 +179,26 @@ function getMyBookings(email) {
   return getDisplayBookings_(false).filter(function(b) {
     return String(b.Email || "").toLowerCase() === email.toLowerCase();
   });
+}
+
+// Public calendar returns only equipment occupancy, never personal booking data.
+function getCalendar(from, to, refresh) {
+  const validDate = function(value) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))
+      && Number.isFinite(Date.parse(value + "T00:00:00Z")) && BookingRules.addDays(value, 0) === value;
+  };
+  if (!validDate(from) || !validDate(to) || to <= from
+      || Date.parse(to) - Date.parse(from) > 42 * 86400000) throw new Error("Invalid calendar date range");
+  const start = BookingRules.timestamp(from + "T00:00:00"), end = BookingRules.timestamp(to + "T00:00:00");
+  const statuses = BookingRules.pending.concat(BookingRules.approved);
+  return { bookings: getDisplayBookings_(refresh).filter(function(booking) {
+    return statuses.includes(booking.Status) && BookingRules.timestamp(booking.Start) < end
+      && BookingRules.timestamp(booking.End) > start;
+  }).map(function(booking) {
+    return { ItemID: String(booking.ItemID), Start: booking.Start, End: booking.End,
+      Quantity: Number(booking.Quantity) > 0 ? Number(booking.Quantity) : 1,
+      Status: BookingRules.approved.includes(booking.Status) ? STATUS.APPROVED : STATUS.P1 };
+  }) };
 }
 
 function getAllBookings() {
@@ -444,7 +465,7 @@ function sendDailyLineReport() {
   });
 
   var today = Utilities.formatDate(new Date(), "Asia/Bangkok", "d MMM");
-  var lines  = [" KCIB — รายการจองรอดำเนินการ (" + today + ")\n"];
+  var lines  = [" KCIB - รายการจองรอดำเนินการ (" + today + ")\n"];
 
   STATUS_ORDER.forEach(function(s) {
     var items = groups[s];
@@ -454,7 +475,7 @@ function sendDailyLineReport() {
     items.forEach(function(b) {
       var qty      = b.Quantity && b.Quantity > 1 ? " ×" + b.Quantity : "";
       var approver = s === STATUS.P1 ? " (" + (b.CurrentApproverName || b.AdvisorEmail || "") + ")" : "";
-      lines.push("• [" + b.BookingID + "] " + (b.ItemName || "") + qty + " — " + (b.Name || b.Email || "") + approver);
+      lines.push("• " + (b.ItemName || "") + qty + " - " + (b.Name || b.Email || "") + approver);
     });
     lines.push(""); // blank line between groups
   });

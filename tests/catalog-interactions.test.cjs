@@ -21,9 +21,9 @@ function element(id = '') {
 
 function client() {
   const elements = new Map();
-  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'page-home', 'page-info']) elements.set(id, element(id));
+  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'page-home', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
   const context = vm.createContext({
-    console, URL, uiIcon: () => '', updateThemeControls: () => {},
+    console, URL, URLSearchParams, uiIcon: () => '', updateThemeControls: () => {},
     localStorage: { getItem: () => null },
     document: {
       documentElement: {}, getElementById: id => elements.get(id),
@@ -36,7 +36,9 @@ function client() {
   context.matchMedia = () => ({ matches: false });
   context.location = { hash: '#home' };
   vm.runInContext(fs.readFileSync('js/i18n.js', 'utf8'), context);
+  vm.runInContext(fs.readFileSync('js/booking-rules.js', 'utf8'), context);
   vm.runInContext(fs.readFileSync('js/app.js', 'utf8').replace(/App\.boot\(\);\s*$/, ''), context);
+  vm.runInContext(fs.readFileSync('js/calendar.js', 'utf8'), context);
   return { app: context.App, context, elements };
 }
 
@@ -134,4 +136,130 @@ test('brand scrolls to the top even on the current home hash; information pages 
       assert.doesNotMatch(elements.get('page-info').innerHTML, /info\.(about|privacy|terms)\./);
     }
   }
+});
+
+test('sorting changes display order without changing inventory or bypassing filters', () => {
+  const { app } = client();
+  app.state.inventory = [
+    {id:'2',name:'Item 10',location:'Room 2',maxQty:3,category:'instrument',courseLimit:'TEAM PROJECT 2'},
+    {id:'1',name:'Item 2',location:'Room 1',maxQty:5,category:'instrument',courseLimit:'TEAM PROJECT 2'},
+    {id:'3',name:'Item 1',location:'Room 1',maxQty:10,category:'glassware'}
+  ];
+  app._homeCategory = 'instrument';
+  app._homeTeamProject2 = true;
+  for (const [sort,expected] of [['default',['2','1']],['nameAsc',['1','2']],['nameDesc',['2','1']],['location',['1','2']],['stock',['1','2']]]) {
+    app._homeSort = sort;
+    assert.deepEqual(Array.from(app._sortHomeItems(app._catalogItems('home')),item=>item.id),expected);
+  }
+  assert.deepEqual(app.state.inventory.map(item=>item.id),['2','1','3']);
+});
+
+test('selected booking button uses the list icon and updates the separate mobile counter', () => {
+  const { app, context, elements } = client();
+  context.uiIcon = name => 'icon:' + name;
+  app.state.cart = [{item:{id:'one'}}];
+  app._renderNavRight();
+  assert.match(elements.get('nav-right').innerHTML,/icon:list/);
+  assert.match(elements.get('mobile-cart-btn').innerHTML,/icon:list/);
+  assert.match(elements.get('mobile-cart-btn').getAttribute('aria-label'),/\(1\)/);
+  assert.equal(elements.get('mobile-cart-btn').hidden,false);
+  app.state.cart = [];
+  app._renderNavRight();
+  assert.equal(elements.get('mobile-cart-btn').hidden,true);
+});
+
+test('calendar date ranges start on Monday and moving months never skips February', () => {
+  const { context } = client(), calendar = context.CalendarUI;
+  assert.equal(calendar.range('week','2026-11-01').from,'2026-10-26');
+  assert.equal(calendar.range('week','2026-11-02').to,'2026-11-09');
+  const month = calendar.range('month','2026-11-01');
+  assert.equal(month.from,'2026-10-26');
+  assert.equal(month.to,'2026-12-07');
+  calendar.render = () => {};
+  calendar.date = '2027-01-31'; calendar.view = 'month';
+  calendar.move(1);
+  assert.equal(calendar.date,'2027-02-01');
+  calendar.move(-1);
+  assert.equal(calendar.date,'2027-01-01');
+});
+
+test('calendar handles overnight bookings, adjacent boundaries, status and equipment filters', () => {
+  const { app, context } = client(), calendar = context.CalendarUI;
+  app.state.inventory = [{id:'one',name:'<GC>',category:'instrument',maxQty:2},{id:'two',name:'Beaker',category:'glassware',maxQty:5}];
+  calendar.itemId = 'one';
+  const booking = {ItemID:'one',Start:'2026-10-22T15:00:00',End:'2026-10-23T10:00:00',Quantity:1,Status:'อนุมัติแล้ว'};
+  calendar.bookings = [booking,{...booking,ItemID:'two'},{...booking,Status:'ปฏิเสธ'},{...booking,End:'2026-10-23T00:00:00'}];
+  assert.equal(calendar.dayBookings('2026-10-23').length,1);
+  const html = calendar.eventHTML(booking,'2026-10-23');
+  assert.match(html,/00:00–10:00/);
+  assert.match(html,/&lt;GC&gt;/);
+  calendar.itemId = ''; calendar.category = 'glassware';
+  assert.equal(calendar.dayBookings('2026-10-23').length,1);
+  assert.equal(calendar.dayBookings('2026-10-23')[0].ItemID,'two');
+});
+
+test('calendar keeps the all-equipment selection and renders translated views', () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true;
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument',location:'CCA Lab-1',maxQty:1}];
+  calendar.load = () => {};
+  calendar.render();
+  assert.equal(calendar.itemId,'one');
+  calendar.filter('itemId','');
+  assert.equal(calendar.itemId,'');
+  for (const lang of ['th','en']) {
+    context.LANG = lang;
+    for (const view of ['week','month','list']) {
+      calendar.view = view; calendar.date = '2026-10-23';
+      calendar.render(); calendar.renderBody();
+      assert.doesNotMatch(elements.get('page-calendar').innerHTML,/calendar\.(intro|previous|week|equipment|note|allEquipment)/);
+      assert.match(elements.get('calendar-body').innerHTML,new RegExp('calendar-' + view));
+    }
+  }
+});
+
+test('a late calendar response cannot replace a newer date selection; failed reads show retry', async () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true; calendar.date = '2026-10-23'; calendar.view = 'week';
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument'}];
+  const pending = [];
+  context.apiGet = () => new Promise(resolve=>pending.push(resolve));
+  let renders = 0; calendar.renderBody = () => { renders++; };
+  const old = calendar.load();
+  calendar.date = '2026-11-02';
+  const fresh = calendar.load(true);
+  pending[1]({bookings:[{ItemID:'new'}]}); await fresh;
+  pending[0]({bookings:[{ItemID:'old'}]}); await old;
+  assert.equal(calendar.bookings[0].ItemID,'new');
+  assert.equal(renders,1);
+  context.apiGet = async () => { throw new Error('Offline'); };
+  await calendar.load();
+  assert.match(elements.get('calendar-body').innerHTML,/CalendarUI.load\(true\)/);
+  assert.equal(elements.get('calendar-refresh').disabled,false);
+  assert.equal(elements.get('calendar-body').getAttribute('aria-busy'),'false');
+});
+
+test('calendar booking requires sign-in and preselects the chosen date and available hour', async () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  const item = {id:'one',name:'GC',category:'instrument'};
+  app.state.inventory = [item]; calendar.itemId = item.id;
+  let loginPrompt = false, selected;
+  app._promptLogin = () => { loginPrompt = true; };
+  await calendar.book('2026-10-23',10);
+  assert.equal(loginPrompt,true);
+  assert.equal(app.state.cart.length,0);
+  app.state.user = {email:'student@kmitl.ac.th'};
+  app._addToCart = () => app.state.cart.push({item});
+  app._openCart = () => {};
+  const field = element();
+  elements.set('ci_0_date',field);
+  app._scheduleDateChanged = async () => {};
+  const slot = {dataset:{start:'2026-10-23T10:00:00'}};
+  context.document.querySelectorAll = () => [slot];
+  app._cartSelectSlot = (value,key) => { selected = {value,key}; };
+  await calendar.book('2026-10-23',10);
+  assert.equal(field.value,'2026-10-23');
+  assert.equal(selected.value,slot);
+  assert.equal(selected.key,'ci_0');
+  assert.equal(app.state.cart.length,1);
 });

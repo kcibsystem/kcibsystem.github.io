@@ -118,6 +118,30 @@ function backend() {
   return {context,rows,config,addBooking,action,metrics,cache,lockCounts:()=>[locks,releases]};
 }
 
+test('public calendar includes overlapping active bookings and returns no personal fields', () => {
+  const b = backend();
+  b.addBooking({Start:'2026-10-22T15:00:00',End:'2026-10-23T10:00:00',Name:'Private name',Note:'Private note'});
+  b.addBooking({BookingID:'legacy',Status:'รออนุมัติขั้นที่ 3'});
+  b.addBooking({BookingID:'rejected',Status:'ปฏิเสธ'});
+  b.addBooking({BookingID:'cancelled',Status:'ยกเลิก'});
+  b.addBooking({BookingID:'before',Start:'2026-10-22T09:00:00',End:'2026-10-23T00:00:00'});
+  b.addBooking({BookingID:'after',Start:'2026-10-24T00:00:00',End:'2026-10-24T12:00:00'});
+  b.context.jsonOut = data => data;
+  const data = b.context.doGet({parameter:{func:'getCalendar',from:'2026-10-23',to:'2026-10-24'}});
+  assert.equal(data.bookings.length,2);
+  assert.equal(data.bookings[1].Status,'อนุมัติแล้ว');
+  for (const booking of data.bookings) assert.deepEqual(Object.keys(booking).sort(),['End','ItemID','Quantity','Start','Status']);
+  assert.doesNotMatch(JSON.stringify(data),/Private|@|BookingID|StudentID|AdvisorEmail/);
+});
+
+test('calendar rejects invalid, reversed, missing and oversized date ranges', () => {
+  const b = backend();
+  for (const [from,to] of [[undefined,'2026-11-01'],['2026-02-30','2026-03-01'],['2026-10-23','2026-10-23'],['2026-10-24','2026-10-23'],['2026-10-01','2026-11-13']]) {
+    assert.throws(()=>b.context.getCalendar(from,to),/Invalid calendar date range/);
+  }
+  assert.equal(b.context.getCalendar('2026-10-01','2026-11-12').bookings.length,0);
+});
+
 test('backend validates canonical inventory and rejects forged schedules, lead-time and oversubscription', () => {
   const b = backend();
   const data = {itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th'};

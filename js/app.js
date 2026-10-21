@@ -149,6 +149,7 @@ window.App = {
     const focusedSearch = document.activeElement?.id;
     if (focusedSearch === 'home-search') this._showSuggestions('home');
     if (focusedSearch === 'equip-search-input') this._showSuggestions('equip');
+    if (document.getElementById('page-calendar')?.classList.contains('active')) CalendarUI.render();
     this._updateInventoryMeta();
   },
 
@@ -326,16 +327,23 @@ window.App = {
     const u    = this.state.user;
     const cart = this.state.cart;
 
-    const svgCart = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h3l2.5 12a2 2 0 0 0 2 1.5h8a2 2 0 0 0 2-1.5L22 7H7"/><circle cx="10" cy="20.5" r="1.3"/><circle cx="18" cy="20.5" r="1.3"/></svg>`;
+    const listIcon = uiIcon('list', 18);
     const svgBell = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>`;
     const svgGoogle = `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.17v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.11V7.05H2.17A11 11 0 0 0 1 12c0 1.77.42 3.45 1.17 4.95l3.67-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.17 7.05l3.67 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>`;
 
     const cartBtnHtml = cart.length > 0
-      ? `<button class="cart-btn" onclick="App._openCart()" title="${t('cart.title')}">
-           ${svgCart}
+      ? `<button class="cart-btn" onclick="App._openCart()" title="${t('cart.title')}" aria-label="${t('cart.title')} (${cart.length})">
+           ${listIcon}
            <span class="cart-count">${cart.length}</span>
          </button>`
       : '';
+    const mobileCartButton = document.getElementById('mobile-cart-btn');
+    if (mobileCartButton) {
+      mobileCartButton.hidden = cart.length === 0;
+      mobileCartButton.innerHTML = `${listIcon}<span class="cart-count">${cart.length}</span>`;
+      mobileCartButton.setAttribute('aria-label', `${t('cart.title')} (${cart.length})`);
+      mobileCartButton.title = t('cart.title');
+    }
 
     if (!u) {
       // Hide mobile notif bell when logged out
@@ -409,12 +417,6 @@ window.App = {
     }
     if (u) document.getElementById('mobile-signin-slot')?.insertAdjacentHTML('beforeend', this._roleSwitcherHTML());
     this._updateAuthLinks();
-    // Mobile cart link visibility
-    const mobileCartLink = document.getElementById('mobile-cart-link');
-    if (mobileCartLink) {
-      mobileCartLink.style.display = this.state.cart.length > 0 ? '' : 'none';
-      mobileCartLink.textContent = ` ${t('cart.title')} (${this.state.cart.length})`;
-    }
   },
 
   _toggleUserDropdown() {
@@ -535,6 +537,7 @@ window.App = {
 
     switch (page) {
       case 'home':        this._renderHome();             showPage('page-home');         break;
+      case 'calendar':    CalendarUI.render();            showPage('page-calendar');     break;
       case 'instrument':  this._renderEquipment('instrument'); showPage('page-equipment');  break;
       case 'glassware':   this._renderEquipment('glassware');  showPage('page-equipment');  break;
       case 'scientific':  this._renderEquipment('scientific'); showPage('page-equipment');  break;
@@ -550,6 +553,7 @@ window.App = {
   /* ================================================== HOME PAGE */
   _homeSearch: '',
   _homeCategory: '',
+  _homeSort: 'default',
   _homeTeamProject2: false,
   _highlightedItem: '',
 
@@ -591,6 +595,10 @@ window.App = {
       <section class="home-catalog-section" aria-labelledby="home-catalog-title">
       <div class="catalog-inner">
         <div class="catalog-heading" id="home-catalog"><h2 id="home-catalog-title">${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>
+        <div class="catalog-sort"><label for="home-sort">${t('catalog.sort')}</label>
+          <select id="home-sort" onchange="App._homeSort=this.value;App._renderHomeGrid()">
+            ${['default','nameAsc','nameDesc','location','stock'].map(sort => `<option value="${sort}" ${this._homeSort === sort ? 'selected' : ''}>${t('catalog.sort.' + sort)}</option>`).join('')}
+          </select></div>
         <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
           ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
             aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
@@ -635,7 +643,7 @@ window.App = {
       grid.innerHTML = this.state.initError ? `<p class="equip-empty">${t('toast.loadFail')}</p>` : this._skeletonGrid(6);
       return;
     }
-    const items = this._catalogItems('home');
+    const items = this._sortHomeItems(this._catalogItems('home'));
     document.getElementById('home-result-count').textContent = `${items.length} ${t('toast.items')}`;
     grid.innerHTML = items.length ? items.map(item => this._equipCardHTML(item, CAT_CONFIG[item.category])).join('')
       : `<div class="equip-empty"><p>${t('equip.noResults')}</p></div>`;
@@ -754,6 +762,15 @@ window.App = {
     return /team[\s_-]*project[\s_-]*2/i.test(item.courseLimit) || /team[\s_-]*project[\s_-]*2/i.test(item.location);
   },
 
+  _sortHomeItems(items) {
+    const compareName = (a, b) => a.name.localeCompare(b.name, window.LANG === 'en' ? 'en' : 'th', { numeric: true, sensitivity: 'base' });
+    if (this._homeSort === 'nameAsc') return items.slice().sort(compareName);
+    if (this._homeSort === 'nameDesc') return items.slice().sort((a, b) => compareName(b, a));
+    if (this._homeSort === 'location') return items.slice().sort((a, b) => String(a.location || '').localeCompare(String(b.location || ''), window.LANG, { numeric: true }) || compareName(a, b));
+    if (this._homeSort === 'stock') return items.slice().sort((a, b) => b.maxQty - a.maxQty || compareName(a, b));
+    return items;
+  },
+
   _catalogItems(scope) {
     const home = scope === 'home';
     const category = home ? this._homeCategory : this._currentCategory;
@@ -867,6 +884,7 @@ window.App = {
       <div class="eq-card-body">
         ${item.location ? `<p class="eq-location">${uiIcon('location',16)} ${escHtml(item.location)}</p>` : ''}
         ${item.detail ? `<p class="eq-detail">${escHtml(item.detail)}</p>` : ''}
+        <button class="eq-calendar-link" data-item-id="${escHtml(item.id)}" onclick="CalendarUI.open(this.dataset.itemId)">${uiIcon('calendar',16)} ${t('calendar.viewSchedule')}</button>
       </div>
       <div class="eq-card-foot"><span class="eq-stock">${t('equip.inStock')} ${item.maxQty} ${unit}</span>${action}</div>
     </article>`;

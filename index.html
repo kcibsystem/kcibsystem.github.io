@@ -58,10 +58,10 @@
 
     <div class="nav-links" id="nav-links">
       <a class="nav-link" data-page="home"       href="#home"       onclick="App.navigate('home');      navClose();return false;">หน้าแรก</a>
+      <a class="nav-link" data-page="calendar" href="#calendar" onclick="App.navigate('calendar');navClose();return false;">ปฏิทินการจอง</a>
       <div id="mobile-signin-slot" class="mobile-signin-slot"></div>
       <a class="nav-link auth-only" data-page="my-bookings" href="#my-bookings" onclick="App.navigate('my-bookings');navClose();return false;" style="display:none;">การจองของฉัน</a>
       <a class="nav-link staff-only" data-page="dashboard" href="#dashboard" onclick="App.navigate('dashboard');navClose();return false;" style="display:none;">แดชบอร์ด</a>
-      <a class="nav-link" href="#" id="mobile-cart-link" onclick="navClose();App._openCart();return false;" style="display:none;"> รายการจอง</a>
       <div class="nav-lang-in-menu">
         <button class="lang-btn" data-lang="th" onclick="setLang('th')">ไทย</button>
         <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
@@ -82,6 +82,7 @@
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>
       <span class="notif-badge" id="mobile-notif-badge" style="display:none;"></span>
     </button>
+    <button class="cart-btn mobile-cart-btn" id="mobile-cart-btn" onclick="navClose();App._openCart()" hidden aria-label="รายการจอง"></button>
     <button class="nav-hamburger" id="nav-hamburger" onclick="navToggle()" aria-label="เมนู" aria-controls="nav-links" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
@@ -131,6 +132,7 @@
   </section>
 </div>
 <div id="page-equipment"   class="page"></div>
+<div id="page-calendar" class="page"></div>
 <div id="page-my-bookings" class="page"></div>
 <div id="page-dashboard"   class="page"></div>
 <div id="page-info" class="page"></div>
@@ -203,6 +205,7 @@
 
 <script src="js/booking-rules.js"></script>
 <script src="js/i18n.js"></script>
+<script src="js/calendar.js"></script>
 <script src="js/app.js"></script>
 
 </body>
