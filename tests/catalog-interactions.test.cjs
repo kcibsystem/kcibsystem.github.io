@@ -198,14 +198,20 @@ test('calendar handles overnight bookings, adjacent boundaries, status and equip
   assert.equal(calendar.dayBookings('2026-10-23')[0].ItemID,'two');
 });
 
-test('calendar keeps the all-equipment selection and renders translated views', () => {
+test('calendar defaults to all items, keeps all when changing filters, and renders translated views', () => {
   const { app, context, elements } = client(), calendar = context.CalendarUI;
-  app.state.initLoaded = true;
-  app.state.inventory = [{id:'one',name:'GC',category:'instrument',location:'CCA Lab-1',maxQty:1}];
   calendar.load = () => {};
   calendar.render();
-  assert.equal(calendar.itemId,'one');
-  calendar.filter('itemId','');
+  assert.equal(calendar.itemId,'');
+  app.state.initLoaded = true;
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument',location:'CCA Lab-1',maxQty:1}];
+  calendar.render();
+  assert.equal(calendar.itemId,'');
+  calendar.filter('itemId','one');
+  calendar.filter('category','instrument');
+  assert.equal(calendar.itemId,'');
+  calendar.filter('itemId','one');
+  calendar.filter('location','CCA Lab-1');
   assert.equal(calendar.itemId,'');
   for (const lang of ['th','en']) {
     context.LANG = lang;
@@ -216,6 +222,24 @@ test('calendar keeps the all-equipment selection and renders translated views', 
       assert.match(elements.get('calendar-body').innerHTML,new RegExp('calendar-' + view));
     }
   }
+});
+
+test('calendar card links select that item while opening the plain calendar returns to all', () => {
+  const { app, context } = client(), calendar = context.CalendarUI;
+  calendar.load = () => {};
+  context.location.hash = '#calendar?item=one';
+  calendar.render();
+  assert.equal(calendar.itemId,'one');
+  app.state.initLoaded = true;
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument'}];
+  calendar.render();
+  assert.equal(calendar.itemId,'one');
+  context.location.hash = '#calendar';
+  calendar.render();
+  assert.equal(calendar.itemId,'');
+  context.location.hash = '#calendar?item=missing';
+  calendar.render();
+  assert.equal(calendar.itemId,'');
 });
 
 test('a late calendar response cannot replace a newer date selection; failed reads show retry', async () => {

@@ -18,14 +18,14 @@ const CAT_CONFIG = {
     id: 'glassware', name: 'เครื่องแก้ว', nameShort: 'เครื่องแก้ว',
     nameEn: 'Glassware',
     icon: uiIcon('glassware'), bgColor: 'var(--cat-purple-bg)', textColor: 'var(--cat-purple)',
-    desc: 'อุปกรณ์เครื่องแก้วสำหรับการทดลองในห้องปฏิบัติการ',
+    desc: 'เครื่องแก้วสำหรับการทดลองในห้องปฏิบัติการ',
     bookingType: 'quantity'
   },
   scientific: {
-    id: 'scientific', name: 'อุปกรณ์วิทยาศาสตร์', nameShort: 'อุปกรณ์วิทย์',
+    id: 'scientific', name: 'รายการวิทยาศาสตร์', nameShort: 'รายการวิทย์',
     nameEn: 'Scientific',
     icon: uiIcon('scientific'), bgColor: 'var(--cat-green-bg)', textColor: 'var(--cat-green)',
-    desc: 'อุปกรณ์วิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
+    desc: 'รายการวิทยาศาสตร์ทั่วไป เช่น จุกยาง, แคลมป์, ขาตั้ง',
     bookingType: 'quantity'
   },
   chemical: {

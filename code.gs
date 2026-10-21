@@ -258,7 +258,7 @@ function submitBooking(data) {
     const item = getInventory().find(function(item) {
       return String(item.ID || item.Id || item.id || item.ItemID || item._row) === String(data.itemId);
     });
-    if (!item) return { success: false, error: "ไม่พบอุปกรณ์ในคลัง" };
+    if (!item) return { success: false, error: "ไม่พบรายการในคลัง" };
     const quantity = data.quantity === "" || data.quantity == null ? 1 : Number(data.quantity);
     const holidays = getHolidays().map(function(day) { return day.date; });
     const invalid = BookingRules.validate(item, data.start || "", data.end || "", quantity, holidays);
@@ -273,7 +273,7 @@ function submitBooking(data) {
     if (invalid) return { success: false, error: messages[invalid] };
     const remaining = BookingRules.availableQuantity(data.itemId, data.start, data.end,
       getAllBookings(), Number(item.MaxQuantity || item.maxQty));
-    if (quantity > remaining) return { success: false, error: "อุปกรณ์ว่างไม่พอในช่วงเวลานี้ เหลือ " + remaining };
+    if (quantity > remaining) return { success: false, error: "จำนวนว่างของรายการไม่พอในช่วงเวลานี้ เหลือ " + remaining };
     const advisor = (getStaffConfig().ADVISORS || []).find(function(person) {
       return person.email.toLowerCase() === String(data.advisorEmail || "").trim().toLowerCase();
     });

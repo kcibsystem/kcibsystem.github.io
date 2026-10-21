@@ -1,6 +1,6 @@
 // Equipment occupancy only. Personal booking details stay in the authenticated views.
 window.CalendarUI = {
-  date: '', view: '', itemId: '', category: '', location: '', bookings: [], request: 0, selectionInitialized: false,
+  date: '', view: '', itemId: '', category: '', location: '', bookings: [], request: 0,
 
   range(view = this.view, date = this.date) {
     if (view === 'list') return { from: date, to: dateAddDays(date,7) };
@@ -32,12 +32,9 @@ window.CalendarUI = {
     this.view ||= window.matchMedia('(max-width: 700px)').matches ? 'list' : 'week';
     const linkedItem = new URLSearchParams(window.location.hash.split('?')[1] || '').get('item');
     if (linkedItem && linkedItem !== this.linkedItem) { this.itemId = linkedItem; this.linkedItem = linkedItem; }
-    if (!linkedItem) this.linkedItem = '';
+    if (!linkedItem && this.linkedItem) { this.itemId = ''; this.linkedItem = ''; }
     const items = this.items();
-    if (App.state.initLoaded) {
-      if (!this.selectionInitialized || (this.itemId && !items.some(item => item.id === this.itemId))) this.itemId = items.find(item => item.id === this.itemId)?.id || items[0]?.id || '';
-      this.selectionInitialized = true;
-    }
+    if (App.state.initLoaded && this.itemId && !items.some(item => item.id === this.itemId)) this.itemId = '';
     const locations = [...new Set(App.state.inventory.map(item => item.location).filter(Boolean))].sort();
     const option = (value, label, current) => `<option value="${escHtml(value)}" ${current === value ? 'selected' : ''}>${escHtml(label)}</option>`;
     document.getElementById('page-calendar').innerHTML = `<div class="calendar-page">
@@ -68,7 +65,7 @@ window.CalendarUI = {
 
   filter(key, value) {
     this[key] = value;
-    if (key !== 'itemId') this.itemId = this.items()[0]?.id || '';
+    if (key !== 'itemId') this.itemId = '';
     this.render();
   },
   setView(view) { this.view = view; this.render(); },
