@@ -541,7 +541,7 @@ window.App = {
       case 'chemical':    this._renderEquipment('chemical');   showPage('page-equipment');  break;
       case 'my-bookings': this._renderMyBookings();         showPage('page-my-bookings'); break;
       case 'dashboard':   this._renderDashboard();          showPage('page-dashboard');   break;
-      case 'about': case 'privacy': case 'terms': this._renderInfoPage(page); showPage('page-info'); break;
+      case 'about': case 'privacy': case 'terms': case 'contact': this._renderInfoPage(page); showPage('page-info'); break;
       default:            this._renderHome();             showPage('page-home');
     }
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -554,15 +554,16 @@ window.App = {
   _highlightedItem: '',
 
   _renderInfoPage(page) {
+    const contactEmails = { kcib: 'kcib.system@gmail.com', developer: 'thitison.tus@gmail.com' };
     const sections = page === 'about' ? ['purpose', 'use', 'contact']
       : page === 'privacy' ? ['data', 'access', 'storage', 'services', 'contact']
-        : ['account', 'booking', 'equipment', 'contact'];
+        : page === 'contact' ? ['kcib', 'developer'] : ['account', 'booking', 'equipment', 'contact'];
     document.getElementById('page-info').innerHTML = `<article class="site-info">
       <a class="home-browse" href="#home">${t('equip.back')}</a>
       <h1>${t('info.' + page + '.title')}</h1>
       <p class="site-info-intro">${t('info.' + page + '.intro')}</p>
       ${sections.map(section => `<section><h2>${t('info.' + page + '.' + section + '.title')}</h2>
-        <p>${t('info.' + page + '.' + section)}</p></section>`).join('')}
+        <p>${page === 'contact' ? `<a class="contact-email" href="mailto:${contactEmails[section]}">${contactEmails[section]}</a>` : t('info.' + page + '.' + section)}</p></section>`).join('')}
     </article>`;
   },
 

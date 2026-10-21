@@ -1102,6 +1102,7 @@ table.dash-table {
 .site-info section { margin-top: 28px; }
 .site-info h2 { font-size: 19px; font-weight: 600; margin-bottom: 8px; }
 .site-info section p { color: var(--text-2); line-height: 1.85; }
+.contact-email { color: var(--accent); overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 4px; }
 @media (max-width: 520px) {
   .footer-bottom-inner { justify-content: flex-start; }
   .footer-credit { margin-left: 0; width: 100%; }

@@ -4,6 +4,10 @@
 
 const TRANSLATIONS = {
   th: {
+    'info.contact.title': 'ติดต่อเรา',
+    'info.contact.intro': 'ติดต่อ KCIB หรือผู้พัฒนาเว็บไซต์ได้ทางอีเมลด้านล่าง',
+    'info.contact.kcib.title': 'อีเมล KCIB',
+    'info.contact.developer.title': 'ผู้พัฒนาเว็บไซต์ — Thitison Tussanatorn (Toy) ChE30',
     "catalog.suggestions": "รายการที่ค้นพบ",
     "info.about.title": "เกี่ยวกับ KCIB",
     "info.about.intro": "KMITL ChE Inventory & Booking ระบบค้นหาอุปกรณ์และส่งคำขอจองสำหรับภาควิชาวิศวกรรมเคมี สจล.",
@@ -320,6 +324,10 @@ const TRANSLATIONS = {
     'footer.mapLabel': 'ที่ตั้ง CCA Building',
   },
   en: {
+    'info.contact.title': 'Contact',
+    'info.contact.intro': 'Contact KCIB or the website developer using the email addresses below.',
+    'info.contact.kcib.title': 'KCIB email',
+    'info.contact.developer.title': 'Website developer — Thitison Tussanatorn (Toy) ChE30',
     "catalog.suggestions": "Matching items",
     "info.about.title": "About KCIB",
     "info.about.intro": "KMITL ChE Inventory & Booking helps the Department of Chemical Engineering at KMITL find equipment and manage booking requests.",
