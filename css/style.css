@@ -333,7 +333,9 @@ input, select, textarea { font-family: inherit; }
 .inventory-refresh { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .inventory-refresh:disabled { color: var(--text-3); cursor: wait; text-decoration: none; }
 .catalog-results { font-size: 13px; color: var(--text-3); margin-bottom: 12px; }
-.catalog-sort { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; font-size: 13px; color: var(--text-2); }
+.catalog-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px; }
+.catalog-toolbar .catalog-categories { margin-bottom: 0; }
+.catalog-sort { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; font-size: 13px; color: var(--text-2); }
 .catalog-sort select { max-width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); padding: 8px 12px; font: inherit; }
 .catalog-course-filter { margin-bottom: 16px; }
 .booking-guide { margin-top: 24px; color: var(--text-2); font-size: 14px; }

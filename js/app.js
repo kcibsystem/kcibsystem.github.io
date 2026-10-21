@@ -595,13 +595,15 @@ window.App = {
       <section class="home-catalog-section" aria-labelledby="home-catalog-title">
       <div class="catalog-inner">
         <div class="catalog-heading" id="home-catalog"><h2 id="home-catalog-title">${t('home.inventory')}</h2>${this._inventoryMetaHTML()}</div>
-        <div class="catalog-sort"><label for="home-sort">${t('catalog.sort')}</label>
-          <select id="home-sort" onchange="App._homeSort=this.value;App._renderHomeGrid()">
-            ${['default','nameAsc','nameDesc','location','stock'].map(sort => `<option value="${sort}" ${this._homeSort === sort ? 'selected' : ''}>${t('catalog.sort.' + sort)}</option>`).join('')}
-          </select></div>
-        <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
-          ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
-            aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
+        <div class="catalog-toolbar">
+          <div class="catalog-categories" role="group" aria-label="${t('section.catLabel')}">
+            ${['', ...Object.keys(CAT_CONFIG)].map(id => `<button class="catalog-category" data-category="${id}"
+              aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
+          </div>
+          <div class="catalog-sort"><label for="home-sort">${t('catalog.sort')}</label>
+            <select id="home-sort" onchange="App._homeSort=this.value;App._renderHomeGrid()">
+              ${['default','nameAsc','nameDesc','location','stock'].map(sort => `<option value="${sort}" ${this._homeSort === sort ? 'selected' : ''}>${t('catalog.sort.' + sort)}</option>`).join('')}
+            </select></div>
         </div>
         <div class="catalog-course-filter"><button class="filter-chip ${this._homeTeamProject2 ? 'active' : ''}" id="home-team-project-filter"
           aria-pressed="${this._homeTeamProject2}" onclick="App._toggleHomeTeamProject2()">Team Project 2</button></div>
