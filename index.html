@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -64,7 +64,7 @@
       <a class="nav-link staff-only" data-page="dashboard" href="#dashboard" onclick="App.navigate('dashboard');navClose();return false;" style="display:none;">แดชบอร์ด</a>
       <div class="nav-lang-in-menu">
         <button class="lang-btn" data-lang="th" onclick="setLang('th')">ไทย</button>
-        <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+        <button class="lang-btn active" data-lang="en" onclick="setLang('en')">EN</button>
       </div>
       <button class="theme-toggle theme-menu" onclick="toggleTheme()" aria-label="ธีมมืด" title="ธีมมืด"></button>
     </div>
@@ -74,8 +74,8 @@
     </div>
 
     <div class="lang-toggle" id="lang-toggle">
-      <button class="lang-btn active" data-lang="th" onclick="setLang('th')">ไทย</button>
-      <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" data-lang="th" onclick="setLang('th')">ไทย</button>
+      <button class="lang-btn active" data-lang="en" onclick="setLang('en')">EN</button>
     </div>
     <button class="theme-toggle theme-desktop" onclick="toggleTheme()" aria-label="ธีมมืด" title="ธีมมืด"></button>
     <button class="notif-btn" id="mobile-notif-btn" onclick="App._toggleNotifDropdown(event)" style="display:none;" aria-label="การแจ้งเตือน">
@@ -204,7 +204,7 @@
 </script>
 
 <script src="js/booking-rules.js"></script>
-<script src="js/i18n.js?v=20261021-staff-id-exemption"></script>
+<script src="js/i18n.js?v=20261021-default-en"></script>
 <script src="js/calendar.js"></script>
 <script src="js/app.js?v=20261021-validation-toasts"></script>
 

@@ -24,7 +24,7 @@ function client() {
   for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'page-home', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
   const context = vm.createContext({
     console, URL, URLSearchParams, uiIcon: () => '', updateThemeControls: () => {},
-    localStorage: { getItem: () => null },
+    localStorage: { getItem: key => key === 'kcib_lang' ? 'th' : null },
     document: {
       documentElement: {}, getElementById: id => elements.get(id),
       querySelectorAll: selector => selector === '.search-suggestions'

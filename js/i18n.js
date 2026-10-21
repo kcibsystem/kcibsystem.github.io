@@ -709,7 +709,7 @@ const TRANSLATIONS = {
   }
 };
 
-window.LANG = localStorage.getItem('kcib_lang') || 'th';
+window.LANG = localStorage.getItem('kcib_lang') || 'en';
 document.documentElement.lang = window.LANG;
 
 window.t = function(key) {
