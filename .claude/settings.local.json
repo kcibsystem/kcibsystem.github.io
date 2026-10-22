@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(powershell.exe *)",
-      "WebFetch(domain:docs.google.com)",
-      "WebFetch(domain:doc-08-1g-sheets.googleusercontent.com)"
-    ]
-  }
-}

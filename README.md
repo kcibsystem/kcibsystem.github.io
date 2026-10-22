@@ -33,7 +33,7 @@ node --test tests/booking-rules.test.cjs tests/request-flow.test.cjs tests/catal
 
 ใช้ `code.gs` เป็น backend หลัก และ `js/booking-rules.js` เป็นกติกาที่ใช้ร่วมกับหน้าเว็บ ต้อง deploy ทั้งสองไฟล์พร้อมกัน ผ่าน `.clasp.json` เดิม
 
-`.claspignore` จำกัดไฟล์ที่ส่งไว้เป็น `code.gs`, `js/booking-rules.js` และ `appsscript.json` เท่านั้น ไฟล์เก่า `code.js` และ `code.gs.temp` ไม่ใช่ไฟล์สำหรับ deploy
+`.claspignore` จำกัดไฟล์ที่ส่งไว้เป็น `code.gs`, `js/booking-rules.js` และ `appsscript.json` เท่านั้น
 
 บัญชีผู้ deploy ต้องเปิด Google Apps Script API ที่ https://script.google.com/home/usersettings ก่อนอัปโหลด
 
