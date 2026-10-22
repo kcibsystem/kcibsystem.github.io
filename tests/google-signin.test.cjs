@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 
 const signinIds = ['g_id_signin_button', 'g_id_signin_mobile_button'];
+const controlIds = signinIds.map(id => id + '-control');
 
 function client(language = 'en') {
   const elements = new Map();
@@ -15,6 +16,10 @@ function client(language = 'en') {
       setAttribute: (key, value) => attributes.set(key, String(value)),
       getAttribute: key => attributes.get(key),
       removeAttribute: key => attributes.delete(key),
+      insertAdjacentHTML(position, value) {
+        assert.equal(position, 'beforeend');
+        html += value;
+      },
       get innerHTML() { return html; },
       set innerHTML(value) {
         for (const child of children.splice(0)) {
@@ -87,10 +92,10 @@ test('a signed-out fresh browser gets real Google popup buttons on desktop and m
   assert.equal(initialized[0].ux_mode, 'popup');
   assert.equal(initialized[0].auto_select, false);
   assert.equal(initialized[0].callback, context.handleCredentialResponse);
-  assert.deepEqual(rendered.map(call => call.node.id), signinIds);
+  assert.deepEqual(rendered.map(call => call.node.id), controlIds);
   for (const id of signinIds) assert.match(elements.get(id).className, /\bkcib-gsi-button\b/);
   for (const id of ['nav-right', 'mobile-signin-slot']) {
-    assert.doesNotMatch(elements.get(id).innerHTML, /_doSignIn|kcib-signin-face|kcib-gsi-over/);
+    assert.doesNotMatch(elements.get(id).innerHTML, /_doSignIn|kcib-gsi-over/);
   }
   assert.doesNotMatch(fs.readFileSync('index.html', 'utf8'), /id="g_id_onload"/);
 
@@ -113,14 +118,15 @@ test('late SDK arrival renders only current navigation nodes, once each', () => 
   sdkEvent(context, 'onload');
   app._renderGSI();
   assert.equal(initialized.length, 1);
-  assert.deepEqual(rendered.map(call => call.node), current);
-  assert.ok(rendered.every(call => !stale.includes(call.node)));
+  assert.deepEqual(rendered.map(call => call.node), controlIds.map(id => elements.get(id)));
+  assert.ok(current.every(node => node.dataset.gsiRendered === 'true'));
+  assert.ok(stale.every(node => !node.dataset.gsiRendered));
 
   app._renderNavRight();
   app._renderGSI();
   assert.equal(initialized.length, 1);
   assert.equal(rendered.length, 4);
-  assert.deepEqual(rendered.slice(2).map(call => call.node), signinIds.map(id => elements.get(id)));
+  assert.deepEqual(rendered.slice(2).map(call => call.node), controlIds.map(id => elements.get(id)));
 });
 
 test('SDK failure gives localized recovery on both buttons and a later SDK load recovers', () => {
@@ -130,6 +136,7 @@ test('SDK failure gives localized recovery on both buttons and a later SDK load 
     const loading = signinIds.map(id => elements.get(id).innerHTML);
     assert.notEqual(context.t('auth.googleLoading'), 'auth.googleLoading');
     assert.ok(loading.every(html => html.includes(context.t('auth.googleLoading'))));
+    assert.ok(loading.every(html => !html.includes('kcib-signin-face')));
     sdkEvent(context, 'onerror');
     assert.equal(context._gsiLoadFailed, true);
     for (const [i, id] of signinIds.entries()) {
@@ -138,6 +145,7 @@ test('SDK failure gives localized recovery on both buttons and a later SDK load 
       assert.notEqual(context.t('auth.googleUnavailable'), 'auth.googleUnavailable');
       assert.ok(html.includes(context.t('auth.googleUnavailable')));
       assert.ok(html.includes(context.t('auth.googleRetry')));
+      assert.doesNotMatch(html, /kcib-signin-face/);
       assert.match(html, /<button\b/);
       const reloadHandler = html.match(/\bonclick="([^"]*reload\([^\"]*)"/);
       assert.ok(reloadHandler, 'Failed sign-in offers reload');
@@ -147,8 +155,28 @@ test('SDK failure gives localized recovery on both buttons and a later SDK load 
     const { initialized, rendered } = loadSDK(context);
     sdkEvent(context, 'onload');
     assert.equal(initialized.length, 1);
-    assert.deepEqual(rendered.map(call => call.node.id), signinIds);
-    for (const id of signinIds) assert.match(elements.get(id).innerHTML, /<iframe/);
+    assert.deepEqual(rendered.map(call => call.node.id), controlIds);
+    for (const id of controlIds) assert.match(elements.get(id).innerHTML, /<iframe/);
+  }
+});
+
+test('the custom face stays static while the accessible Google control disables personalization', () => {
+  const { app, context, elements } = client();
+  const { rendered } = loadSDK(context);
+  app._renderNavRight();
+  for (const { node, options } of rendered) {
+    assert.equal(options.size, 'medium');
+    assert.equal(options.text, 'signin_with');
+    assert.equal(options.locale, 'en');
+    assert.equal(options.width, 200);
+    assert.notEqual(node.getAttribute('aria-hidden'), 'true');
+    assert.match(node.innerHTML, /<iframe title="Sign in with Google"/);
+  }
+  for (const id of signinIds) {
+    const html = elements.get(id).innerHTML;
+    assert.match(html, /class="kcib-signin-face" aria-hidden="true"/);
+    assert.match(html, /<span>Sign in with Google<\/span>/);
+    assert.doesNotMatch(html, /onclick=|Sign in as/);
   }
 });
 

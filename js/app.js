@@ -497,10 +497,16 @@ window.App = {
     // A real Google button supports sign-in even without an existing Google session.
     buttons.forEach(el => {
       if (el.dataset.gsiRendered) return;
-      el.innerHTML = '';
-      google.accounts.id.renderButton(el, {
-        theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', width: 220
+      const controlId = el.id + '-control';
+      el.innerHTML = `<div id="${controlId}" class="kcib-gsi-control"></div>`;
+      google.accounts.id.renderButton(document.getElementById(controlId), {
+        theme: 'outline', size: 'medium', shape: 'rectangular', text: 'signin_with', width: 200, locale: 'en'
       });
+      // Medium prevents account personalization; the real control handles clicks and keyboard input.
+      el.insertAdjacentHTML('beforeend', `<div class="kcib-signin-face" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" focusable="false"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.17v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.11V7.05H2.17A11 11 0 0 0 1 12c0 1.77.42 3.45 1.17 4.95l3.67-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.17 7.05l3.67 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>
+        <span>Sign in with Google</span>
+      </div>`);
       el.dataset.gsiRendered = 'true';
     });
   },
@@ -544,6 +550,7 @@ window.App = {
   _homeCategory: '',
   _homeSort: 'default',
   _homeTeamProject2: false,
+  _homeVisibleCount: 6,
   _highlightedItem: '',
 
   _renderInfoPage(page) {
@@ -590,7 +597,7 @@ window.App = {
               aria-pressed="${this._homeCategory === id}" onclick="App._setHomeCategory('${id}')">${id ? t('cat.' + id + '.nameShort') : t('equip.filterAll')}</button>`).join('')}
           </div>
           <div class="catalog-sort"><label for="home-sort">${t('catalog.sort')}</label>
-            <select id="home-sort" onchange="App._homeSort=this.value;App._renderHomeGrid()">
+            <select id="home-sort" onchange="App._setHomeSort(this.value)">
               ${['default','nameAsc','nameDesc','location','stock'].map(sort => `<option value="${sort}" ${this._homeSort === sort ? 'selected' : ''}>${t('catalog.sort.' + sort)}</option>`).join('')}
             </select></div>
         </div>
@@ -598,6 +605,8 @@ window.App = {
           aria-pressed="${this._homeTeamProject2}" onclick="App._toggleHomeTeamProject2()">Team Project 2</button></div>
         <p class="catalog-results" id="home-result-count" aria-live="polite"></p>
         <div class="equip-grid" id="home-grid"></div>
+        <div class="catalog-more" id="home-more" hidden><button type="button" class="btn btn-secondary" aria-controls="home-grid"
+          onclick="App._showMoreHome()">${t('catalog.showMore')}</button></div>
         <details class="booking-guide"><summary>${t('section.howTitle')}</summary>
           <ol>${[1,2,3,4].map(step => `<li><strong>${t('step' + step + '.title')}</strong> ${t('step' + step + '.desc')}</li>`).join('')}</ol>
         </details>
@@ -607,6 +616,7 @@ window.App = {
   },
 
   _onHomeSearch(value) {
+    if (this._homeSearch !== value) this._homeVisibleCount = 6;
     this._homeSearch = value;
     this._highlightedItem = '';
     this._renderHomeGrid();
@@ -615,6 +625,7 @@ window.App = {
 
   _toggleHomeTeamProject2() {
     this._homeTeamProject2 = !this._homeTeamProject2;
+    this._homeVisibleCount = 6;
     const button = document.getElementById('home-team-project-filter');
     button.classList.toggle('active', this._homeTeamProject2);
     button.setAttribute('aria-pressed', String(this._homeTeamProject2));
@@ -622,21 +633,41 @@ window.App = {
   },
 
   _setHomeCategory(category) {
+    if (this._homeCategory !== category) this._homeVisibleCount = 6;
     this._homeCategory = category;
     document.querySelectorAll('.catalog-category').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.category === category)));
     this._renderHomeGrid();
   },
 
+  _setHomeSort(sort) {
+    if (this._homeSort !== sort) this._homeVisibleCount = 6;
+    this._homeSort = sort;
+    this._renderHomeGrid();
+  },
+
+  _showMoreHome() {
+    const firstNewIndex = this._homeVisibleCount;
+    this._homeVisibleCount += 6;
+    this._renderHomeGrid();
+    document.getElementById('home-grid').querySelectorAll('.eq-card')[firstNewIndex]?.focus({ preventScroll: true });
+  },
+
   _renderHomeGrid() {
     const grid = document.getElementById('home-grid');
     if (!grid) return;
+    const count = document.getElementById('home-result-count');
+    const more = document.getElementById('home-more');
     if (!this.state.initLoaded) {
+      count.textContent = '';
+      more.hidden = true;
       grid.innerHTML = this.state.initError ? `<p class="equip-empty">${t('toast.loadFail')}</p>` : this._skeletonGrid(6);
       return;
     }
     const items = this._sortHomeItems(this._catalogItems('home'));
-    document.getElementById('home-result-count').textContent = `${items.length} ${t('toast.items')}`;
-    grid.innerHTML = items.length ? items.map(item => this._equipCardHTML(item, CAT_CONFIG[item.category])).join('')
+    const visibleItems = items.slice(0, this._homeVisibleCount);
+    count.textContent = t('catalog.showing').replace('{shown}', visibleItems.length).replace('{total}', items.length);
+    more.hidden = visibleItems.length >= items.length;
+    grid.innerHTML = items.length ? visibleItems.map(item => this._equipCardHTML(item, CAT_CONFIG[item.category])).join('')
       : `<div class="equip-empty"><p>${t('equip.noResults')}</p></div>`;
   },
 
@@ -829,6 +860,13 @@ window.App = {
   _selectSuggestion(itemId, scope) {
     this._highlightedItem = itemId;
     this._closeSuggestions();
+    if (scope === 'home') {
+      const index = this._sortHomeItems(this._catalogItems('home')).findIndex(item => item.id === itemId);
+      if (index >= this._homeVisibleCount) {
+        this._homeVisibleCount = Math.ceil((index + 1) / 6) * 6;
+        this._renderHomeGrid();
+      }
+    }
     const grid = document.getElementById(scope + '-grid');
     grid.querySelectorAll('.eq-card').forEach(card => card.classList.toggle('eq-card-highlighted', card.dataset.itemId === itemId));
     const card = [...grid.querySelectorAll('.eq-card')].find(card => card.dataset.itemId === itemId);

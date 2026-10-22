@@ -6,7 +6,8 @@ const vm = require('node:vm');
 function element(id = '') {
   const attributes = new Map(), classes = new Set();
   return {
-    id, dataset: {}, hidden: false, innerHTML: '',
+    id, dataset: {}, hidden: false, innerHTML: '', value: '',
+    querySelectorAll: () => [],
     setAttribute: (key, value) => attributes.set(key, value),
     getAttribute: key => attributes.get(key),
     removeAttribute: key => attributes.delete(key),
@@ -23,7 +24,7 @@ function element(id = '') {
 
 function client() {
   const elements = new Map();
-  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'home-result-count', 'home-team-project-filter', 'equip-grid', 'equip-filters', 'page-home', 'page-equipment', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
+  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'home-result-count', 'home-more', 'home-team-project-filter', 'equip-grid', 'equip-filters', 'page-home', 'page-equipment', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
   const context = vm.createContext({
     console, URL, URLSearchParams, uiIcon: () => '', updateThemeControls: () => {},
     localStorage: { getItem: key => key === 'kcib_lang' ? 'th' : null },
@@ -46,6 +47,150 @@ function client() {
   vm.runInContext(fs.readFileSync('js/calendar.js', 'utf8'), context);
   return { app: context.App, context, elements };
 }
+
+function homeInventory(count) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: 'item-' + index, name: 'Item ' + index, category: 'instrument', courseLimit: 'TEAM_PROJECT_2', maxQty: 1, available: true
+  }));
+}
+
+function homeCardIds(elements) {
+  return [...elements.get('home-grid').innerHTML.matchAll(/<article[^>]*data-item-id="([^"]+)"/g)].map(match => match[1]);
+}
+
+test('home starts with six cards and reveals six at a time, keeping full totals and focusing the new batch', () => {
+  const { app, elements } = client();
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(15);
+  const cards = app.state.inventory.map(item => Object.assign(element(), { dataset: { itemId: item.id } }));
+  elements.get('home-grid').querySelectorAll = () => cards.slice(0, homeCardIds(elements).length);
+  app._renderHome();
+  assert.match(elements.get('page-home').innerHTML, /onclick="App\._showMoreHome\(\)"/);
+  assert.equal(homeCardIds(elements).length, 6);
+  assert.equal(elements.get('home-result-count').textContent, 'แสดง 6 จาก 15 รายการ');
+  assert.equal(elements.get('home-more').hidden, false);
+  app._showMoreHome();
+  assert.equal(homeCardIds(elements).length, 12);
+  assert.equal(cards[6].focusOptions.preventScroll, true);
+  assert.equal(elements.get('home-result-count').textContent, 'แสดง 12 จาก 15 รายการ');
+  assert.equal(elements.get('home-more').hidden, false);
+  app._showMoreHome();
+  assert.equal(homeCardIds(elements).length, 15);
+  assert.equal(cards[12].focusOptions.preventScroll, true);
+  assert.equal(elements.get('home-result-count').textContent, 'แสดง 15 จาก 15 รายการ');
+  assert.equal(elements.get('home-more').hidden, true);
+});
+
+test('home hides show more while loading, after a load failure, and when all or no matches fit', () => {
+  const { app, elements } = client();
+  for (const failed of [false, true]) {
+    app.state.initError = failed;
+    app._renderHomeGrid();
+    assert.equal(elements.get('home-more').hidden, true);
+    assert.equal(elements.get('home-result-count').textContent, '');
+  }
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(6);
+  app._renderHomeGrid();
+  assert.equal(elements.get('home-more').hidden, true);
+  app._homeSearch = 'missing';
+  app._renderHomeGrid();
+  assert.equal(homeCardIds(elements).length, 0);
+  assert.equal(elements.get('home-result-count').textContent, 'แสดง 0 จาก 0 รายการ');
+  assert.equal(elements.get('home-more').hidden, true);
+});
+
+test('changing home search, category, Team Project or sort starts a fresh six-card result list', () => {
+  const { app, elements } = client();
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(18);
+  for (const change of [
+    () => app._onHomeSearch('Item'),
+    () => app._setHomeCategory('instrument'),
+    () => app._toggleHomeTeamProject2(),
+    () => app._setHomeSort('nameDesc')
+  ]) {
+    app._showMoreHome();
+    assert.equal(homeCardIds(elements).length, 12);
+    change();
+    assert.equal(homeCardIds(elements).length, 6);
+    assert.equal(app._homeVisibleCount, 6);
+    assert.equal(app._catalogItems('home').length, 18);
+  }
+  assert.equal(homeCardIds(elements)[0], 'item-17');
+  app._showMoreHome();
+  app._setHomeCategory('instrument');
+  app._setHomeSort('nameDesc');
+  assert.equal(homeCardIds(elements).length, 12);
+});
+
+test('a home suggestion beyond the visible batch reveals and focuses its card in sorted results', () => {
+  const { app, elements } = client();
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(15);
+  app._homeSearch = elements.get('home-search').value = 'Item';
+  app._homeSort = 'nameDesc';
+  const grid = elements.get('home-grid'), card = element();
+  card.dataset.itemId = 'item-1';
+  grid.querySelectorAll = () => homeCardIds(elements).includes(card.dataset.itemId) ? [card] : [];
+  app._renderHomeGrid();
+  app._showSuggestions('home');
+  assert.match(elements.get('home-suggestions').innerHTML, /data-item-id="item-1"/);
+  assert.equal(homeCardIds(elements).includes('item-1'), false);
+  app._selectSuggestion('item-1', 'home');
+  assert.equal(homeCardIds(elements).includes('item-1'), true);
+  assert.equal(app._homeVisibleCount, 18);
+  assert.equal(card.classList.contains('eq-card-highlighted'), true);
+  assert.equal(card.focusOptions.preventScroll, true);
+  assert.equal(card.scrollOptions.block, 'center');
+  assert.equal(elements.get('home-suggestions').hidden, true);
+});
+
+test('home keeps revealed cards across background refresh, cart updates, language changes and navigation', () => {
+  const { app, context, elements } = client();
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(15);
+  elements.get('page-home').classList.add('active');
+  app._renderHomeGrid();
+  app._showMoreHome();
+  app.state.inventory = homeInventory(18);
+  app._refreshCatalogView();
+  assert.equal(homeCardIds(elements).length, 12);
+  assert.equal(elements.get('home-result-count').textContent, 'แสดง 12 จาก 18 รายการ');
+  app.state.cart = [{ item: app.state.inventory[7] }];
+  app._refreshCatalogView();
+  assert.equal(homeCardIds(elements).length, 12);
+  context.LANG = 'en';
+  app._renderHome();
+  assert.equal(homeCardIds(elements).length, 12);
+  assert.equal(elements.get('home-result-count').textContent, 'Showing 12 of 18 items');
+  context.location.hash = '#about';
+  app._route();
+  context.location.hash = '#home';
+  app._route();
+  assert.equal(homeCardIds(elements).length, 12);
+});
+
+test('returning from a calendar restores a home card from a revealed batch and its scroll position', () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  calendar.load = () => {};
+  app.state.initLoaded = true;
+  app.state.inventory = homeInventory(15);
+  app._route();
+  app._showMoreHome();
+  const link = element();
+  link.dataset.itemId = 'item-9';
+  elements.get('home-grid').querySelectorAll = () => homeCardIds(elements).includes(link.dataset.itemId) ? [link] : [];
+  context.scrollY = 1400;
+  calendar.open('item-9');
+  app._route();
+  calendar.back();
+  app._route();
+  assert.equal(homeCardIds(elements).length, 12);
+  assert.equal(homeCardIds(elements).includes('item-9'), true);
+  assert.equal(context.scrollY, 1400);
+  assert.equal(link.focusOptions.preventScroll, true);
+});
 
 test('Team Project 2 combines with category and search consistently in both catalogs', () => {
   const { app } = client();
