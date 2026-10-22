@@ -1,0 +1,14 @@
+{
+  "name": "KCIB",
+  "short_name": "KCIB",
+  "start_url": "./",
+  "display": "browser",
+  "icons": [
+    {
+      "src": "Logo_new.png",
+      "sizes": "1000x1000",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
