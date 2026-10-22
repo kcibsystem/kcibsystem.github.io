@@ -471,7 +471,7 @@ input, select, textarea { font-family: inherit; }
   transition: var(--trans);
   white-space: nowrap;
 }
-.filter-chip:hover { border-color: var(--accent); color: var(--accent); }
+.filter-chip:hover { border-color: var(--border-strong); color: var(--text); }
 .filter-chip.active {
   background: var(--accent-light); border-color: var(--accent); color: var(--accent);
 }

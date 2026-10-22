@@ -16,10 +16,42 @@ window.CalendarUI = {
   },
 
   open(itemId) {
+    const origin = window.location.hash || '#home';
+    this.returnTo = {
+      hash: origin, itemId, scrollY: window.scrollY,
+      equipment: origin.split('?')[0] === '#home' ? null : {
+        _currentFilter: App._currentFilter,
+        _currentSearch: App._currentSearch,
+        _currentLocationFilter: App._currentLocationFilter,
+      },
+      searchValue: document.getElementById('equip-search-input')?.value || '',
+    };
     this.itemId = itemId; this.category = ''; this.location = '';
     const hash = '#calendar?item=' + encodeURIComponent(itemId);
     if (window.location.hash === hash) this.render();
     else window.location.hash = hash;
+  },
+
+  back() {
+    this.pendingReturn = this.returnTo;
+    window.location.hash = this.returnTo?.hash || '#home';
+  },
+
+  restoreReturn() {
+    const origin = this.pendingReturn;
+    this.pendingReturn = null;
+    if (!origin || window.location.hash !== origin.hash) return false;
+    if (origin.equipment) {
+      Object.assign(App, origin.equipment);
+      document.getElementById('equip-search-input').value = origin.searchValue;
+      App._renderLocationFilters();
+      App._renderEquipGrid();
+    }
+    const grid = document.getElementById(origin.equipment ? 'equip-grid' : 'home-grid');
+    const link = [...grid.querySelectorAll('.eq-calendar-link')].find(link => link.dataset.itemId === origin.itemId);
+    link?.focus({ preventScroll: true });
+    window.scrollTo({ top: origin.scrollY, behavior: 'instant' });
+    return true;
   },
 
   items() {
@@ -31,6 +63,7 @@ window.CalendarUI = {
     this.date ||= todayISO();
     this.view ||= window.matchMedia('(max-width: 700px)').matches ? 'list' : 'week';
     const linkedItem = new URLSearchParams(window.location.hash.split('?')[1] || '').get('item');
+    if (!linkedItem || linkedItem !== this.returnTo?.itemId) this.returnTo = null;
     if (linkedItem && linkedItem !== this.linkedItem) { this.itemId = linkedItem; this.linkedItem = linkedItem; }
     if (!linkedItem && this.linkedItem) { this.itemId = ''; this.linkedItem = ''; }
     const items = this.items();
@@ -38,6 +71,7 @@ window.CalendarUI = {
     const locations = [...new Set(App.state.inventory.map(item => item.location).filter(Boolean))].sort();
     const option = (value, label, current) => `<option value="${escHtml(value)}" ${current === value ? 'selected' : ''}>${escHtml(label)}</option>`;
     document.getElementById('page-calendar').innerHTML = `<div class="calendar-page">
+      <a class="home-browse" href="${escHtml(this.returnTo?.hash || '#home')}" onclick="CalendarUI.back();return false;">${t('equip.back')}</a>
       <div class="calendar-heading"><div><h1>${t('nav.calendar')}</h1><p>${t('calendar.intro')}</p></div>
         <button class="btn btn-secondary" id="calendar-refresh" onclick="CalendarUI.refresh()">${t('mybook.refresh')}</button></div>
       <div class="calendar-filters">

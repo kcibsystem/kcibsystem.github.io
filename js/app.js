@@ -551,6 +551,7 @@ window.App = {
       case 'about': case 'privacy': case 'terms': case 'contact': this._renderInfoPage(page); showPage('page-info'); break;
       default:            this._renderHome();             showPage('page-home');
     }
+    if (CalendarUI.restoreReturn()) return;
     window.scrollTo({ top: 0, behavior: 'instant' });
   },
 
@@ -752,7 +753,7 @@ window.App = {
   },
 
   _setLocationFilter(loc) {
-    this._currentLocationFilter = loc;
+    this._currentLocationFilter = this._currentLocationFilter === loc ? '' : loc;
     this._renderLocationFilters();
     this._renderEquipGrid();
   },

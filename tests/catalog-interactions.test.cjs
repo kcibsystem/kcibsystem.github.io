@@ -12,6 +12,8 @@ function element(id = '') {
     removeAttribute: key => attributes.delete(key),
     classList: {
       contains: key => classes.has(key),
+      add: key => classes.add(key),
+      remove: key => classes.delete(key),
       toggle(key, active) { if (active) classes.add(key); else classes.delete(key); }
     },
     focus(options) { this.focusOptions = options; },
@@ -21,7 +23,7 @@ function element(id = '') {
 
 function client() {
   const elements = new Map();
-  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'page-home', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
+  for (const id of ['home-search', 'equip-search-input', 'home-suggestions', 'equip-suggestions', 'home-grid', 'home-result-count', 'home-team-project-filter', 'equip-grid', 'equip-filters', 'page-home', 'page-equipment', 'page-info', 'page-calendar', 'calendar-body', 'calendar-meta', 'calendar-refresh', 'nav-right', 'mobile-cart-btn']) elements.set(id, element(id));
   const context = vm.createContext({
     console, URL, URLSearchParams, uiIcon: () => '', updateThemeControls: () => {},
     localStorage: { getItem: key => key === 'kcib_lang' ? 'th' : null },
@@ -29,12 +31,15 @@ function client() {
       documentElement: {}, getElementById: id => elements.get(id),
       querySelectorAll: selector => selector === '.search-suggestions'
         ? [elements.get('home-suggestions'), elements.get('equip-suggestions')]
-        : selector === '[aria-autocomplete="list"]' ? [elements.get('home-search'), elements.get('equip-search-input')] : []
+        : selector === '[aria-autocomplete="list"]' ? [elements.get('home-search'), elements.get('equip-search-input')]
+          : selector === '.page' ? [...elements.values()].filter(element => element.id.startsWith('page-')) : []
     }
   });
   context.window = context;
   context.matchMedia = () => ({ matches: false });
   context.location = { hash: '#home' };
+  context.scrollY = 0;
+  context.scrollTo = options => { context.scrollY = options.top; };
   vm.runInContext(fs.readFileSync('js/i18n.js', 'utf8'), context);
   vm.runInContext(fs.readFileSync('js/booking-rules.js', 'utf8'), context);
   vm.runInContext(fs.readFileSync('js/app.js', 'utf8').replace(/App\.boot\(\);\s*$/, ''), context);
@@ -60,6 +65,37 @@ test('Team Project 2 combines with category and search consistently in both cata
   assert.deepEqual(Array.from(app._catalogItems('equip'), item => item.id), ['gc']);
   app._currentSearch = 'absent';
   assert.equal(app._catalogItems('equip').length, 0);
+});
+
+test('pressing Team Project 2 twice clears selection and restores matching items in both catalogs', () => {
+  const { app, elements } = client();
+  app.state.initLoaded = true;
+  app.state.inventory = [
+    { id: 'team', name: 'GC Team', category: 'instrument', courseLimit: 'TEAM_PROJECT_2' },
+    { id: 'other', name: 'GC Other', category: 'instrument' },
+    { id: 'glass', name: 'GC Glass', category: 'glassware' }
+  ];
+  app._homeCategory = app._currentCategory = 'instrument';
+  app._homeSearch = app._currentSearch = 'gc';
+  app._homeSort = 'nameDesc';
+  const button = elements.get('home-team-project-filter');
+  app._toggleHomeTeamProject2();
+  assert.equal(button.classList.contains('active'), true);
+  assert.equal(button.getAttribute('aria-pressed'), 'true');
+  assert.doesNotMatch(elements.get('home-grid').innerHTML, /data-item-id="other"/);
+  app._toggleHomeTeamProject2();
+  assert.equal(button.classList.contains('active'), false);
+  assert.equal(button.getAttribute('aria-pressed'), 'false');
+  assert.match(elements.get('home-grid').innerHTML, /data-item-id="other"/);
+  assert.doesNotMatch(elements.get('home-grid').innerHTML, /data-item-id="glass"/);
+  assert.equal(app._homeSearch, 'gc');
+  assert.equal(app._homeSort, 'nameDesc');
+  app._setLocationFilter('Team Project 2');
+  assert.doesNotMatch(elements.get('equip-grid').innerHTML, /data-item-id="other"/);
+  app._setLocationFilter('Team Project 2');
+  assert.equal(app._currentLocationFilter, '');
+  assert.match(elements.get('equip-grid').innerHTML, /data-item-id="other"/);
+  assert.match(elements.get('equip-filters').innerHTML, /class="filter-chip " aria-pressed="false" data-location="Team Project 2"/);
 });
 
 test('selecting a suggestion focuses and scrolls to that exact card, preserving its highlight on render', () => {
@@ -240,6 +276,73 @@ test('calendar card links select that item while opening the plain calendar retu
   context.location.hash = '#calendar?item=missing';
   calendar.render();
   assert.equal(calendar.itemId,'');
+});
+
+test('calendar back returns to the same card, scroll position and catalog filters', () => {
+  for (const page of ['home', 'instrument']) {
+    const { app, context, elements } = client(), calendar = context.CalendarUI;
+    calendar.load = () => {};
+    app.state.initLoaded = true;
+    app.state.inventory = [{ id: 'one', name: 'GC', category: 'instrument', courseLimit: 'TEAM_PROJECT_2' }];
+    app._homeCategory = 'instrument';
+    app._homeSearch = 'GC';
+    app._homeSort = 'nameDesc';
+    app._homeTeamProject2 = true;
+    app._highlightedItem = 'one';
+    context.location.hash = '#' + page;
+    app._route();
+    app._currentSearch = 'gc';
+    app._currentLocationFilter = 'Team Project 2';
+    elements.get('equip-search-input').value = 'GC';
+    const link = element();
+    link.dataset.itemId = 'one';
+    elements.get(page === 'home' ? 'home-grid' : 'equip-grid').querySelectorAll = () => [link];
+    context.scrollY = 890;
+    calendar.open('one');
+    app._route();
+    assert.equal(context.scrollY, 0);
+    assert.match(elements.get('page-calendar').innerHTML, new RegExp('href="#' + page + '" onclick="CalendarUI.back'));
+    calendar.setView('month');
+    calendar.filter('category', 'glassware');
+    calendar.back();
+    app._route();
+    assert.equal(context.location.hash, '#' + page);
+    assert.equal(context.scrollY, 890);
+    assert.equal(link.focusOptions.preventScroll, true);
+    if (page === 'home') {
+      assert.equal(app._homeCategory, 'instrument');
+      assert.equal(app._homeSearch, 'GC');
+      assert.equal(app._homeSort, 'nameDesc');
+      assert.equal(app._homeTeamProject2, true);
+    } else {
+      assert.equal(app._currentSearch, 'gc');
+      assert.equal(app._currentLocationFilter, 'Team Project 2');
+      assert.equal(elements.get('equip-search-input').value, 'GC');
+    }
+    assert.equal(app._highlightedItem, 'one');
+    context.scrollY = 300;
+    app._route();
+    assert.equal(context.scrollY, 0);
+  }
+});
+
+test('plain and directly linked calendars go back home without a stale card origin', () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  calendar.load = () => {};
+  context.location.hash = '#instrument';
+  calendar.open('one');
+  calendar.render();
+  context.location.hash = '#calendar';
+  calendar.render();
+  calendar.back();
+  assert.equal(context.location.hash, '#home');
+  app._route();
+  assert.equal(context.scrollY, 0);
+  context.location.hash = '#calendar?item=two';
+  calendar.render();
+  assert.match(elements.get('page-calendar').innerHTML, /href="#home" onclick="CalendarUI.back/);
+  calendar.back();
+  assert.equal(context.location.hash, '#home');
 });
 
 test('a late calendar response cannot replace a newer date selection; failed reads show retry', async () => {
