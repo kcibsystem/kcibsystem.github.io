@@ -35,9 +35,8 @@ const TRANSLATIONS = {
     "calendar.daySchedule": "ดูตารางวันนั้น",
     "calendar.viewSchedule": "ดูตารางจอง",
     'info.contact.title': 'ติดต่อเรา',
-    'info.contact.intro': 'ติดต่อ KCIB หรือผู้พัฒนาเว็บไซต์ได้ทางอีเมลด้านล่าง',
+    'info.contact.intro': 'ติดต่อ KCIB ได้ทางอีเมลด้านล่าง',
     'info.contact.kcib.title': 'อีเมล KCIB',
-    'info.contact.developer.title': 'ผู้พัฒนาเว็บไซต์ — Thitison Tussanatorn (Toy) ChE30',
     "catalog.suggestions": "รายการที่ค้นพบ",
     "info.about.title": "เกี่ยวกับ KCIB",
     "info.about.intro": "KMITL ChE Inventory & Booking ระบบค้นหารายการและส่งคำขอจองสำหรับภาควิชาวิศวกรรมเคมี สจล.",
@@ -233,6 +232,10 @@ const TRANSLATIONS = {
     'notif.recentBookings': 'รายการจองล่าสุด',
     'notif.markRead': 'อ่านทั้งหมด',
     'notif.empty':    'ไม่มีการแจ้งเตือนใหม่',
+    // Google sign-in
+    'auth.googleLoading': 'กำลังโหลดปุ่ม Google…',
+    'auth.googleUnavailable': 'โหลดปุ่ม Google ไม่สำเร็จ กรุณาโหลดใหม่ หรือเปิดลิงก์ใน Chrome / Safari',
+    'auth.googleRetry': 'โหลดใหม่',
     // Toast messages
     'toast.loadFail':        'โหลดข้อมูลไม่สำเร็จ',
     'toast.loadFailHint':    "กรุณาลองโหลดหน้าเว็บอีกครั้ง",
@@ -387,9 +390,8 @@ const TRANSLATIONS = {
     "calendar.daySchedule": "View day schedule",
     "calendar.viewSchedule": "View schedule",
     'info.contact.title': 'Contact',
-    'info.contact.intro': 'Contact KCIB or the website developer using the email addresses below.',
+    'info.contact.intro': 'Contact KCIB using the email address below.',
     'info.contact.kcib.title': 'KCIB email',
-    'info.contact.developer.title': 'Website developer — Thitison Tussanatorn (Toy) ChE30',
     "catalog.suggestions": "Matching items",
     "info.about.title": "About KCIB",
     "info.about.intro": "KMITL ChE Inventory & Booking helps the Department of Chemical Engineering at KMITL find items and manage booking requests.",
@@ -585,6 +587,10 @@ const TRANSLATIONS = {
     'notif.recentBookings': 'Recent bookings',
     'notif.markRead': 'Mark all read',
     'notif.empty':    'No new notifications',
+    // Google sign-in
+    'auth.googleLoading': 'Loading Google sign-in…',
+    'auth.googleUnavailable': 'Could not load Google sign-in. Reload or open this page in Chrome / Safari.',
+    'auth.googleRetry': 'Reload',
     // Toast messages
     'toast.loadFail':        'Failed to load data',
     'toast.loadFailHint':    "Please reload the page and try again",

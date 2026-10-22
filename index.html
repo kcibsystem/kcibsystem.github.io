@@ -21,7 +21,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
   <!-- Google Identity Services -->
-  <script async defer src="https://accounts.google.com/gsi/client"></script>
+  <script async defer src="https://accounts.google.com/gsi/client"
+    onload="window._gsiLoadFailed = false; window.App?._renderGSI();"
+    onerror="window._gsiLoadFailed = true; window.App?._renderGSI();"></script>
 
   <!-- GSI callback must be global BEFORE app.js loads -->
   <script>
@@ -33,20 +35,9 @@
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
 
-  <link rel="stylesheet" href="css/style.css?v=20261022-catalog-calendar-back">
+  <link rel="stylesheet" href="css/style.css?v=20261022-google-signin">
 </head>
 <body>
-
-<!-- Hidden GSI trigger belongs in the body so the head remains valid. -->
-<div id="g_id_onload"
-  data-client_id="334956664737-s7e0dirg9bfni63lr19qaogoc6cqmhum.apps.googleusercontent.com"
-  data-callback="handleCredentialResponse"
-  data-auto_prompt="false"
-  data-context="signin"
-  data-ux_mode="popup"
-  data-hd="kmitl.ac.th"
-  style="display:none">
-</div>
 
 <!-- ===================== NAVBAR ===================== -->
 <nav id="navbar">
@@ -204,9 +195,9 @@
 </script>
 
 <script src="js/booking-rules.js"></script>
-<script src="js/i18n.js?v=20261021-default-en"></script>
+<script src="js/i18n.js?v=20261022-google-signin"></script>
 <script src="js/calendar.js?v=20261022-catalog-calendar-back"></script>
-<script src="js/app.js?v=20261022-catalog-calendar-back"></script>
+<script src="js/app.js?v=20261022-google-signin"></script>
 
 </body>
 </html>

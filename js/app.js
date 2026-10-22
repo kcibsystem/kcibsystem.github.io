@@ -74,7 +74,6 @@ window.App = {
     this._homeSearch = document.getElementById('home-search')?.value || '';
     this._route();
     this._renderNavRight();
-    this._renderGSI();
 
     // Load data from Apps Script
     try {
@@ -89,7 +88,6 @@ window.App = {
     this._refreshCatalogView();
     if (document.querySelector('#page-my-bookings.active, #page-dashboard.active')) this._route();
     this._renderNavRight();
-    this._renderGSI();
 
     // Load notification count in background (after UI ready)
     if (this.state.user) {
@@ -221,6 +219,7 @@ window.App = {
     };
     this.state.user.roleLabel = this._roleLabel(this.state.user.role);
 
+    navClose();
     this._renderNavRight();
     this._updateAuthLinks();
     showToast('success', t('toast.loginSuccess'), `${t('toast.welcome')} ${this.state.user.givenName}`);
@@ -239,7 +238,6 @@ window.App = {
     this.state.bookings = [];
     if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
     this._renderNavRight();
-    this._renderGSI();
     this._updateAuthLinks();
     showToast('info', t('toast.loggedOut'), '');
     this.navigate('home');
@@ -333,7 +331,6 @@ window.App = {
 
     const listIcon = uiIcon('list', 18);
     const svgBell = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.5 21a2 2 0 0 0 3 0"/></svg>`;
-    const svgGoogle = `<svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.56-2.76c-.98.66-2.24 1.06-3.72 1.06-2.86 0-5.29-1.93-6.16-4.53H2.17v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.11A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.11V7.05H2.17A11 11 0 0 0 1 12c0 1.77.42 3.45 1.17 4.95l3.67-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.2 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.17 7.05l3.67 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>`;
 
     const cartBtnHtml = cart.length > 0
       ? `<button class="cart-btn" onclick="App._openCart()" title="${t('cart.title')}" aria-label="${t('cart.title')} (${cart.length})">
@@ -355,23 +352,13 @@ window.App = {
       if (mobileNotifBtnOut) mobileNotifBtnOut.style.display = 'none';
 
       el.innerHTML = `${cartBtnHtml}
-        <div class="kcib-signin-wrap" title="Sign in with Google">
-          <div class="kcib-signin-face" aria-hidden="true">
-            ${svgGoogle}
-            <span>Sign in with Google</span>
-          </div>
-          <div id="g_id_signin_button" class="kcib-gsi-over"></div>
-        </div>`;
-      this._renderGSI();
+        <div id="g_id_signin_button" class="kcib-gsi-button"></div>`;
       // Mobile: show sign-in slot in the drawer
       const mobileSlot = document.getElementById('mobile-signin-slot');
       if (mobileSlot) {
-        mobileSlot.innerHTML = `
-          <button class="kcib-signin-btn" onclick="App._doSignIn();navClose();" style="width:100%;justify-content:center;margin:4px 0;">
-            ${svgGoogle}
-            <span>Sign in with Google</span>
-          </button>`;
+        mobileSlot.innerHTML = '<div id="g_id_signin_mobile_button" class="kcib-gsi-button"></div>';
       }
+      this._renderGSI();
     } else {
       // Mobile: show notif bell next to hamburger
       const mobileNotifBtn = document.getElementById('mobile-notif-btn');
@@ -487,38 +474,35 @@ window.App = {
   },
 
   _renderGSI() {
-    const el = document.getElementById('g_id_signin_button');
-    if (!el) return;
-    const tryRender = () => {
-      if (window.google?.accounts?.id) {
-        if (!App._gsiInitialized) {
-          google.accounts.id.initialize({
-            client_id: window.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID,
-            callback:  handleCredentialResponse,
-            auto_prompt: false
-          });
-          App._gsiInitialized = true;
-        }
-        google.accounts.id.renderButton(el, {
-          theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', width: 220
-        });
-        clearInterval(timer);
-      }
-    };
-    const timer = setInterval(tryRender, 60);
-    tryRender();
-  },
-
-  _renderGSIMobile() {
-    /* no-op: mobile uses kcib-signin-btn which triggers prompt() */
-  },
-
-  _doSignIn() {
-    if (window.google?.accounts?.id) {
-      google.accounts.id.prompt();
-    } else {
-      setTimeout(() => this._doSignIn(), 200);
+    if (this.state.user) return;
+    const buttons = ['g_id_signin_button', 'g_id_signin_mobile_button']
+      .map(id => document.getElementById(id)).filter(Boolean);
+    if (!buttons.length) return;
+    if (!window.google?.accounts?.id) {
+      buttons.forEach(el => {
+        el.innerHTML = `<span class="kcib-signin-status" role="status">${t(window._gsiLoadFailed ? 'auth.googleUnavailable' : 'auth.googleLoading')}</span>
+          ${window._gsiLoadFailed ? `<button type="button" class="btn btn-secondary btn-sm kcib-signin-retry" onclick="window.location.reload()">${t('auth.googleRetry')}</button>` : ''}`;
+      });
+      return;
     }
+    if (!this._gsiInitialized) {
+      google.accounts.id.initialize({
+        client_id: window.GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse,
+        ux_mode: 'popup',
+        auto_select: false
+      });
+      this._gsiInitialized = true;
+    }
+    // A real Google button supports sign-in even without an existing Google session.
+    buttons.forEach(el => {
+      if (el.dataset.gsiRendered) return;
+      el.innerHTML = '';
+      google.accounts.id.renderButton(el, {
+        theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', width: 220
+      });
+      el.dataset.gsiRendered = 'true';
+    });
   },
 
   /* -------------------------------------------------- ROUTING */
@@ -563,10 +547,10 @@ window.App = {
   _highlightedItem: '',
 
   _renderInfoPage(page) {
-    const contactEmails = { kcib: 'kcib.system@gmail.com', developer: 'thitison.tus@gmail.com' };
+    const contactEmails = { kcib: 'kcib.system@gmail.com' };
     const sections = page === 'about' ? ['purpose', 'use', 'contact']
       : page === 'privacy' ? ['data', 'access', 'storage', 'services', 'contact']
-        : page === 'contact' ? ['kcib', 'developer'] : ['account', 'booking', 'equipment', 'contact'];
+        : page === 'contact' ? ['kcib'] : ['account', 'booking', 'equipment', 'contact'];
     document.getElementById('page-info').innerHTML = `<article class="site-info">
       <a class="home-browse" href="#home">${t('equip.back')}</a>
       <h1>${t('info.' + page + '.title')}</h1>

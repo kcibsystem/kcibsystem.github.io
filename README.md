@@ -26,7 +26,7 @@ API `getCalendar` รับ `from` และ `to` เป็นวันที่
 การอนุมัติ/ปฏิเสธส่งแถวที่อัปเดตกลับมาให้หน้าเว็บใช้ต่อโดยไม่โหลดตารางซ้ำ คำสั่งทั้งหมดส่งเป็นชุดละไม่เกิน 200 รายการ และรายงานรายการที่สำเร็จหรือไม่สำเร็จแยกกัน
 
 ```sh
-node --test tests/booking-rules.test.cjs tests/request-flow.test.cjs tests/catalog-interactions.test.cjs
+node --test tests/booking-rules.test.cjs tests/request-flow.test.cjs tests/catalog-interactions.test.cjs tests/google-signin.test.cjs
 ```
 
 ## Apps Script

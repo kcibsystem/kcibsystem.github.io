@@ -1619,43 +1619,21 @@ table.dash-table {
   line-height: 1;
 }
 
-/* ===================== CUSTOM SIGN-IN BUTTON ===================== */
-/* Wrapper: holds our visual face + invisible Google button on top */
-.kcib-signin-wrap {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
+/* ===================== GOOGLE SIGN-IN ===================== */
+.kcib-gsi-button {
+  width: 220px;
+  min-height: 40px;
   flex-shrink: 0;
 }
-/* Visual layer — pointer-events: none so clicks fall through to Google button */
-.kcib-signin-face {
-  display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; color: var(--text); font-size: 13px; font-weight: 500;
-  white-space: nowrap; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); transition: var(--trans);
-  pointer-events: none; user-select: none;
+.mobile-signin-slot .kcib-gsi-button { margin: 4px auto; }
+.kcib-signin-status {
+  display: block;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
 }
-.kcib-signin-wrap:hover .kcib-signin-face {
-  background: var(--surface-muted); border-color: var(--text-3);
-}
-/* Real Google button — covers the face, opacity 0 so invisible but fully clickable */
-.kcib-gsi-over {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  opacity: 0.01;
-  border-radius: 10px;
-}
-/* Mobile sign-in button (uses prompt() via onclick) */
-.kcib-signin-btn {
-  display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; color: var(--text); font-size: 13px; font-weight: 500;
-  white-space: nowrap; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); transition: var(--trans);
-  cursor: pointer; font-family: inherit;
-}
-.kcib-signin-btn:hover {
-  background: var(--surface-muted); border-color: var(--text-3);
-}
+.kcib-signin-retry { margin-top: 6px; }
 
 /* ===================== CART MODAL ===================== */
 .cart-item-section {
