@@ -505,10 +505,116 @@ test('a late calendar response cannot replace a newer date selection; failed rea
   assert.equal(calendar.bookings[0].ItemID,'new');
   assert.equal(renders,1);
   context.apiGet = async () => { throw new Error('Offline'); };
-  await calendar.load();
+  await calendar.load(true);
   assert.match(elements.get('calendar-body').innerHTML,/CalendarUI.load\(true\)/);
   assert.equal(elements.get('calendar-refresh').disabled,false);
   assert.equal(elements.get('calendar-body').getAttribute('aria-busy'),'false');
+  context.apiGet = async () => ({bookings:[]});
+  await calendar.load();
+  assert.equal(calendar.bookings.length,0);
+  assert.equal(renders,2);
+});
+
+test('calendar filters and equivalent views share an in-flight read and reuse empty results with their actual fetch time', async () => {
+  const { app, context, elements } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true; calendar.date = '2026-10-19'; calendar.view = 'week';
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument',location:'Lab 1'}];
+  calendar.renderBody = () => {};
+  context.calendarClock = 1000;
+  vm.runInContext('Date.now = () => calendarClock',context);
+  app._formatFetchTime = timestamp => String(timestamp);
+  const calls = [];
+  let resolveRead;
+  context.apiGet = (action,params) => {
+    calls.push({action,...params});
+    return new Promise(resolve => { resolveRead = resolve; });
+  };
+  const first = calendar.load();
+  calendar.filter('category','instrument');
+  calendar.filter('location','Lab 1');
+  calendar.filter('itemId','one');
+  calendar.setView('list');
+  const latest = calendar.load();
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].action,'getCalendar');
+  assert.equal(calls[0].from,'2026-10-19');
+  assert.equal(calls[0].to,'2026-10-26');
+  resolveRead({bookings:[]});
+  await Promise.all([first,latest]);
+  assert.equal(calendar.bookings.length,0);
+  context.calendarClock = 10999;
+  await calendar.load();
+  assert.equal(calls.length,1);
+  assert.match(elements.get('calendar-meta').textContent,/1000/);
+});
+
+test('calendar expires occupancy reads after ten seconds and refresh bypasses fresh data', async () => {
+  const { app, context } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true; calendar.date = '2026-10-23'; calendar.view = 'week';
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument'}];
+  calendar.renderBody = () => {};
+  context.calendarClock = 1000;
+  vm.runInContext('Date.now = () => calendarClock',context);
+  const calls = [];
+  context.apiGet = async (action,params) => {
+    calls.push(params);
+    return {bookings:[{ItemID:String(calls.length)}]};
+  };
+  await calendar.load();
+  context.calendarClock = 11000;
+  await calendar.load();
+  assert.equal(calls.length,2);
+  assert.equal(calendar.bookings[0].ItemID,'2');
+  await calendar.refresh();
+  assert.equal(calls.length,3);
+  assert.equal(calls[2].refresh,'1');
+  assert.equal(calendar.bookings[0].ItemID,'3');
+});
+
+test('a forced calendar refresh supersedes an older same-range request in both the UI and cache', async () => {
+  const { app, context } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true; calendar.date = '2026-10-23'; calendar.view = 'week';
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument'}];
+  calendar.renderBody = () => {};
+  const pending = [];
+  context.apiGet = () => new Promise(resolve => pending.push(resolve));
+  const old = calendar.load();
+  const fresh = calendar.load(true);
+  const shared = calendar.load();
+  assert.equal(pending.length,2);
+  pending[1]({bookings:[{ItemID:'new'}]});
+  await Promise.all([fresh,shared]);
+  pending[0]({bookings:[{ItemID:'old'}]});
+  await old;
+  assert.equal(calendar.bookings[0].ItemID,'new');
+  await calendar.load();
+  assert.equal(pending.length,2);
+  assert.equal(calendar.bookings[0].ItemID,'new');
+});
+
+test('calendar invalidation clears fresh data and prevents an outstanding read from restoring it', async () => {
+  const { app, context } = client(), calendar = context.CalendarUI;
+  app.state.initLoaded = true; calendar.date = '2026-10-23'; calendar.view = 'week';
+  app.state.inventory = [{id:'one',name:'GC',category:'instrument'}];
+  calendar.renderBody = () => {};
+  const pending = [];
+  context.apiGet = () => new Promise(resolve => pending.push(resolve));
+  const first = calendar.load();
+  pending[0]({bookings:[{ItemID:'initial'}]});
+  await first;
+  calendar.invalidate();
+  const old = calendar.load();
+  assert.equal(pending.length,2);
+  calendar.invalidate();
+  const fresh = calendar.load();
+  assert.equal(pending.length,3);
+  pending[2]({bookings:[{ItemID:'updated'}]});
+  await fresh;
+  pending[1]({bookings:[{ItemID:'stale'}]});
+  await old;
+  await calendar.load();
+  assert.equal(pending.length,3);
+  assert.equal(calendar.bookings[0].ItemID,'updated');
 });
 
 test('calendar booking requires sign-in and preselects the chosen date and available hour', async () => {

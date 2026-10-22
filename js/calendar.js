@@ -1,6 +1,38 @@
 // Equipment occupancy only. Personal booking details stay in the authenticated views.
 window.CalendarUI = {
   date: '', view: '', itemId: '', category: '', location: '', bookings: [], request: 0,
+  _rangeCache: new Map(), _rangePending: new Map(), _cacheVersion: 0,
+
+  invalidate() {
+    this._rangeCache.clear(); this._rangePending.clear();
+    this._cacheVersion++; this.request++;
+  },
+
+  async _readRange(range, refresh) {
+    const key = range.from + ':' + range.to;
+    if (!refresh) {
+      const pending = this._rangePending.get(key);
+      if (pending) return pending.promise;
+      const cached = this._rangeCache.get(key);
+      if (cached && Date.now() - cached.fetchedAt < 10000) return cached;
+    }
+    this._rangeCache.delete(key);
+    const version = this._cacheVersion, pending = {};
+    pending.promise = apiGet('getCalendar', { ...range, ...(refresh ? {refresh:'1'} : {}) })
+      .then(data => {
+        if (!data || !Array.isArray(data.bookings)) throw new Error('Invalid calendar response');
+        const result = { bookings: data.bookings, fetchedAt: Date.now() };
+        if (version === this._cacheVersion && this._rangePending.get(key) === pending) {
+          this._rangeCache.set(key, result);
+          if (this._rangeCache.size > 4) this._rangeCache.delete(this._rangeCache.keys().next().value);
+        }
+        return result;
+      }).finally(() => {
+        if (this._rangePending.get(key) === pending) this._rangePending.delete(key);
+      });
+    this._rangePending.set(key, pending);
+    return pending.promise;
+  },
 
   range(view = this.view, date = this.date) {
     if (view === 'list') return { from: date, to: dateAddDays(date,7) };
@@ -134,13 +166,11 @@ window.CalendarUI = {
     }
     button.disabled = true;
     try {
-      const range = this.range();
-      const data = await apiGet('getCalendar', { ...range, ...(refresh ? {refresh:'1'} : {}) });
-      if (!data || !Array.isArray(data.bookings)) throw new Error('Invalid calendar response');
+      const data = await this._readRange(this.range(), refresh);
       if (request !== this.request || document.getElementById('calendar-body') !== body) return;
       this.bookings = data.bookings;
       this.renderBody();
-      meta.textContent = `${t('catalog.fetchedAt')} ${App._formatFetchTime(Date.now())} · ${t('calendar.note')}`;
+      meta.textContent = `${t('catalog.fetchedAt')} ${App._formatFetchTime(data.fetchedAt)} · ${t('calendar.note')}`;
     } catch (_) {
       if (request !== this.request || document.getElementById('calendar-body') !== body) return;
       body.innerHTML = `<div class="calendar-empty"><p>${t('toast.loadFail')}</p><button class="btn btn-secondary" onclick="CalendarUI.load(true)">${t('mybook.refresh')}</button></div>`;

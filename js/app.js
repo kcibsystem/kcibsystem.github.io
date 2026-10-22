@@ -105,10 +105,9 @@ window.App = {
       const cached = sessionStorage.getItem(CACHE_KEY);
       if (cached) {
         const { ts, data } = JSON.parse(cached);
-        if (Date.now() - ts < CACHE_TTL) {
+        const age = Date.now() - ts;
+        if (Number.isFinite(ts) && age >= 0 && age < CACHE_TTL) {
           this._applyInitData(data, ts);
-          // Refresh in background silently
-          this._refreshInventory().catch(() => {});
           return;
         }
       }
@@ -208,6 +207,10 @@ window.App = {
       return;
     }
 
+    this._invalidateReadCaches();
+    this.state.bookings = [];
+    this._allBookings = [];
+    this._notifCount = 0;
     localStorage.setItem('kcib_token', response.credential);
 
     this.state.user = {
@@ -236,6 +239,9 @@ window.App = {
     localStorage.removeItem('kcib_token');
     this.state.user    = null;
     this.state.bookings = [];
+    this._allBookings = [];
+    this._invalidateReadCaches();
+    this._notifCount = 0;
     if (window.google?.accounts?.id) google.accounts.id.disableAutoSelect();
     this._renderNavRight();
     this._updateAuthLinks();
@@ -283,6 +289,8 @@ window.App = {
     if (!user || !BookingRules.rolesFor(user.email, this.state.staffConfig).includes(role)) return;
     user.role = role;
     user.roleLabel = this._roleLabel(role);
+    this._invalidateReadCaches();
+    this._notifCount = 0;
     localStorage.setItem('kcib_role_' + user.email, role);
     closeDropdown();
     this._renderNavRight();
@@ -1163,7 +1171,55 @@ window.App = {
     const element = document.getElementById(key + '_availability');
     if (!element) return;
     element.className = 'schedule-availability ' + (error ? 'form-error' : 'form-hint');
-    element.innerHTML = escHtml(message) + (retry ? ` <button type="button" class="inventory-refresh" onclick="App._scheduleDateChanged('${key}', document.getElementById('${key}_date').value)">${t('mybook.refresh')}</button>` : '');
+    element.innerHTML = escHtml(message) + (retry ? ` <button type="button" class="inventory-refresh" onclick="App._scheduleDateChanged('${key}', document.getElementById('${key}_date').value, true)">${t('mybook.refresh')}</button>` : '');
+  },
+
+  _readUserKey() {
+    const u = this.state.user;
+    return u ? JSON.stringify([String(u.email || '').toLowerCase(), u.role || '']) : '';
+  },
+
+  _invalidateReadCaches() {
+    this._readCacheRevision = (this._readCacheRevision || 0) + 1;
+    pendingApiGets.clear();
+    this._bookingReadSequence++;
+    this._bookingsRequest = null;
+    this._bookingsRequestFresh = false;
+    this._availabilityCache = new Map();
+    this._availabilityRequests = new Map();
+    this._notificationCache = null;
+    this._notificationRequest = null;
+    this._notifSummary = null;
+    this._myBookingsLoadedFor = null;
+    this._myBookingsRequest = null;
+    this.state.cart.forEach(entry => { entry.scheduleRequest = (entry.scheduleRequest || 0) + 1; });
+    if (window.CalendarUI?.invalidate) CalendarUI.invalidate();
+  },
+
+  _fetchAvailability(itemId, from, to, refresh = false) {
+    const userKey = this._readUserKey(), revision = this._readCacheRevision || 0;
+    const key = JSON.stringify([userKey, String(itemId), from, to]);
+    const cache = this._availabilityCache || (this._availabilityCache = new Map());
+    const requests = this._availabilityRequests || (this._availabilityRequests = new Map());
+    const cached = cache.get(key);
+    if (!refresh && cached && Date.now() - cached.fetchedAt < 10000) return Promise.resolve(cached);
+    if (refresh) cache.delete(key);
+    const pending = requests.get(key);
+    if (pending && (!refresh || pending.refresh)) return pending.promise;
+    const request = { refresh };
+    request.promise = apiGet('getAvailability', { itemId, from, to, ...(refresh ? { refresh: '1' } : {}) }).then(data => {
+      if (revision !== (this._readCacheRevision || 0) || userKey !== this._readUserKey() || requests.get(key) !== request) return null;
+      const snapshot = { bookings: data.bookings, fetchedAt: Date.now() };
+      cache.delete(key);
+      cache.set(key, snapshot);
+      while (cache.size > 20) cache.delete(cache.keys().next().value);
+      return snapshot;
+    }).catch(error => {
+      if (revision !== (this._readCacheRevision || 0) || userKey !== this._readUserKey() || requests.get(key) !== request) return null;
+      throw error;
+    }).finally(() => { if (requests.get(key) === request) requests.delete(key); });
+    requests.set(key, request);
+    return request.promise;
   },
 
   _scheduleModeChanged(key) {
@@ -1176,8 +1232,8 @@ window.App = {
     this._scheduleDateChanged(key, document.getElementById(key + '_date').value);
   },
 
-  _scheduleDateChanged(key, date) {
-    if (document.getElementById(key + '_duration').value !== 'custom') return this._cartDateChange(key, date);
+  _scheduleDateChanged(key, date, refresh = false) {
+    if (document.getElementById(key + '_duration').value !== 'custom') return this._cartDateChange(key, date, refresh);
     const end = document.getElementById(key + '_end');
     if (date && end) {
       if (end._flatpickr) end._flatpickr.set('minDate', date);
@@ -1187,10 +1243,10 @@ window.App = {
         else end.value = date;
       }
     }
-    return this._checkCustomAvailability(key);
+    return this._checkCustomAvailability(key, refresh);
   },
 
-  async _cartDateChange(key, date) {
+  async _cartDateChange(key, date, refresh = false) {
     const index = Number(key.replace('ci_', ''));
     const entry = this.state.cart[index];
     const slots = document.getElementById(key + '_slots');
@@ -1208,9 +1264,10 @@ window.App = {
     if (![1,2,3].includes(hours)) return;
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await this._fetchAllBookings(true);
-      if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
-      entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
+      const snapshot = await this._fetchAvailability(entry.item.id, date, dateAddDays(date, 1), refresh);
+      if (!snapshot || entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
+      const bookings = snapshot.bookings;
+      entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = snapshot.fetchedAt;
       const quantity = Number(document.getElementById(key + '_qty')?.value || 1);
       group.style.display = '';
       const options = [];
@@ -1245,7 +1302,7 @@ window.App = {
     this._setScheduleMessage(key, `${t('form.availableRange')} ${remaining} / ${entry.item.maxQty} ${unit} · ${t('form.checkedAt')} ${this._formatFetchTime(entry.bookingsFetchedAt)}`, remaining < quantity);
   },
 
-  async _checkCustomAvailability(key) {
+  async _checkCustomAvailability(key, refresh = false) {
     const index = Number(key.replace('ci_', ''));
     const entry = this.state.cart[index];
     if (!entry) return;
@@ -1260,9 +1317,9 @@ window.App = {
     if (invalid) { this._setScheduleMessage(key, t('validation.' + invalid), true); return; }
     this._setScheduleMessage(key, t('form.checkingAvailability'));
     try {
-      const bookings = await this._fetchAllBookings(true);
-      if (entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
-      entry.bookingsSnapshot = bookings; entry.bookingsFetchedAt = Date.now();
+      const snapshot = await this._fetchAvailability(entry.item.id, date, dateAddDays(endDate, 1), refresh);
+      if (!snapshot || entry.scheduleRequest !== request || this.state.cart[index] !== entry) return;
+      entry.bookingsSnapshot = snapshot.bookings; entry.bookingsFetchedAt = snapshot.fetchedAt;
       this._showCartAvailability(key, start, end);
     } catch (_) {
       if (entry.scheduleRequest === request && this.state.cart[index] === entry) this._setScheduleMessage(key, t('form.availabilityFailed'), true, true);
@@ -1373,6 +1430,7 @@ window.App = {
       this.state.cart     = this.state.cart.filter(entry => !submittedIds.has(entry.item.id));
       this.state.bookings = [];
       this._allBookings   = [];
+      this._invalidateReadCaches();
       this.closeModal();
       this._renderNavRight();
       this._refreshCatalogView();
@@ -1397,28 +1455,43 @@ window.App = {
   },
 
   /* ================================================== NOTIFICATIONS */
-  async _loadNotifData() {
-    const u = this.state.user;
-    if (!u) return;
+  _notificationSeen() {
     try {
-      if (this._isStaff()) {
-        if (this._allBookings.length === 0) {
-          await this._fetchAllBookings();
-        }
-        this._notifCount = this._allBookings.filter(b => this._canApprove(b)).length;
-      } else {
-        if (this.state.bookings.length === 0) {
-          this.state.bookings = await apiGet('getMyBookings', { email: u.email });
-        }
-        const seen = JSON.parse(localStorage.getItem('kcib_notif_seen') || '{}');
-        this._notifCount = this.state.bookings.filter(b =>
-          b.BookingID &&
-          BookingRules.approved.concat(STATUS_REJ).includes(b.Status) &&
-          seen[b.BookingID] !== b.Status
-        ).length;
-      }
+      const seen = JSON.parse(localStorage.getItem('kcib_notif_seen') || '{}');
+      return seen && typeof seen === 'object' && !Array.isArray(seen) ? seen : {};
+    } catch (_) { return {}; }
+  },
+
+  _loadNotifData(refresh = false) {
+    const key = this._readUserKey();
+    if (!key) return Promise.resolve(null);
+    const cached = this._notificationCache;
+    if (cached?.key !== key) {
+      this._notifSummary = null;
+      this._notifCount = 0;
       this._updateNotifBadge();
-    } catch (e) { /* silent fail */ }
+    }
+    if (!refresh && cached?.key === key && Date.now() - cached.fetchedAt < 30000) {
+      this._notifSummary = cached.summary;
+      this._notifCount = cached.summary.count;
+      this._updateNotifBadge();
+      return Promise.resolve(cached.summary);
+    }
+    if (this._notificationRequest?.key === key && (!refresh || this._notificationRequest.refresh)) return this._notificationRequest.promise;
+    const revision = this._readCacheRevision || 0;
+    const request = { key, refresh };
+    request.promise = apiPost({ action: 'getNotifications', seen: this._notificationSeen() }).then(summary => {
+      if (revision !== (this._readCacheRevision || 0) || key !== this._readUserKey() || this._notificationRequest !== request) return null;
+      this._notificationCache = { key, summary, fetchedAt: Date.now() };
+      this._notifSummary = summary;
+      this._notifCount = summary.count;
+      this._updateNotifBadge();
+      return summary;
+    }).catch(() => null).finally(() => {
+      if (this._notificationRequest === request) this._notificationRequest = null;
+    });
+    this._notificationRequest = request;
+    return request.promise;
   },
 
   _updateNotifBadge() {
@@ -1433,28 +1506,34 @@ window.App = {
 
   _markNotifsRead() {
     if (!this._isStaff()) {
-      const seen = {};
-      this.state.bookings.forEach(b => { if (b.BookingID) seen[b.BookingID] = b.Status; });
+      const seen = { ...this._notificationSeen(), ...this._notifSummary?.readState };
       localStorage.setItem('kcib_notif_seen', JSON.stringify(seen));
     }
+    this._notificationRequest = null;
+    const summary = { ...this._notifSummary, count: 0, items: this._isStaff() ? (this._notifSummary?.items || []) : [] };
+    this._notifSummary = summary;
+    this._notificationCache = { key: this._readUserKey(), summary, fetchedAt: this._notificationCache?.fetchedAt || Date.now() };
     this._notifCount = 0;
     this._updateNotifBadge();
   },
 
-  _toggleNotifDropdown(e) {
+  async _toggleNotifDropdown(e) {
     e.stopPropagation();
     const existing = document.getElementById('notif-dropdown');
     if (existing) { existing.remove(); return; }
 
     const u = this.state.user;
     if (!u) return;
+    const userKey = this._readUserKey();
+    await this._loadNotifData();
+    if (userKey !== this._readUserKey() || document.getElementById('notif-dropdown')) return;
 
     const isStaff = this._isStaff();
     let items = [];
 
     if (isStaff) {
       const approvals = this._isApprovalRole();
-      const bookings = approvals ? this._allBookings.filter(b => this._canApprove(b)) : this._allBookings.slice().reverse();
+      const bookings = this._notifSummary?.items || [];
       items = bookings.slice(0, 10).map(b => ({
         icon: uiIcon(approvals ? 'clock' : 'list'),
         title: b.ItemName || '-',
@@ -1463,10 +1542,7 @@ window.App = {
         unread: approvals
       }));
     } else {
-      const seen = JSON.parse(localStorage.getItem('kcib_notif_seen') || '{}');
-      items = this.state.bookings.filter(b =>
-        b.BookingID && BookingRules.approved.concat(STATUS_REJ).includes(b.Status) && seen[b.BookingID] !== b.Status
-      ).slice(0, 10).map(b => ({
+      items = (this._notifSummary?.items || []).slice(0, 10).map(b => ({
         icon: BookingRules.approved.includes(b.Status) ? uiIcon('check') : uiIcon('close'),
         title: b.ItemName || '-',
         desc:  b.Status || '-',
@@ -1546,31 +1622,49 @@ window.App = {
   },
 
   async _refreshMyBookings() {
-    this.state.bookings = [];
     const listEl = document.getElementById('bookings-list');
     if (listEl) listEl.innerHTML = this._skeletonBookings(3);
-    await this._fetchAndRenderMyBookings();
+    await this._fetchAndRenderMyBookings(true);
   },
 
-  async _fetchAndRenderMyBookings() {
+  async _fetchAndRenderMyBookings(refresh = false) {
     const u = this.state.user;
     if (!u) return;
+    const key = this._readUserKey(), revision = this._readCacheRevision || 0;
     const listEl = document.getElementById('bookings-list');
     if (!listEl) return;
     try {
-      if (this.state.bookings.length === 0) {
-        this.state.bookings = await apiGet('getMyBookings', { email: u.email });
-        // Recompute notification count with fresh data
-        if (!this._isStaff()) {
-          const seen = JSON.parse(localStorage.getItem('kcib_notif_seen') || '{}');
-          this._notifCount = this.state.bookings.filter(b =>
-            b.BookingID && BookingRules.approved.concat(STATUS_REJ).includes(b.Status) && seen[b.BookingID] !== b.Status
-          ).length;
-          this._updateNotifBadge();
+      if (refresh || this._myBookingsLoadedFor !== key) {
+        let request = this._myBookingsRequest;
+        if (!request || request.key !== key || (refresh && !request.refresh)) {
+          request = { key, refresh };
+          request.promise = apiGet('getMyBookings', { email: u.email, ...(refresh ? { refresh: '1' } : {}) }).then(bookings => {
+            if (revision !== (this._readCacheRevision || 0) || key !== this._readUserKey() || this._myBookingsRequest !== request) return;
+            this.state.bookings = bookings;
+            this._myBookingsLoadedFor = key;
+            if (!this._isStaff()) {
+              const seen = this._notificationSeen(), readState = {};
+              const relevant = bookings.filter(booking => booking.BookingID && BookingRules.approved.concat(STATUS_REJ).includes(booking.Status));
+              relevant.forEach(booking => { readState[booking.BookingID] = booking.Status; });
+              const unread = relevant.filter(booking => seen[booking.BookingID] !== booking.Status);
+              const summary = { count: unread.length, readState, items: unread.slice(0, 10).map(booking => ({
+                BookingID: booking.BookingID, ItemName: booking.ItemName || '', Status: booking.Status
+              })) };
+              this._notificationRequest = null;
+              this._notificationCache = { key, summary, fetchedAt: Date.now() };
+              this._notifSummary = summary;
+              this._notifCount = summary.count;
+              this._updateNotifBadge();
+            }
+          }).finally(() => { if (this._myBookingsRequest === request) this._myBookingsRequest = null; });
+          this._myBookingsRequest = request;
         }
+        await request.promise;
       }
+      if (revision !== (this._readCacheRevision || 0) || key !== this._readUserKey() || this._myBookingsLoadedFor !== key) return;
       this._renderBookingsList();
     } catch (e) {
+      if (revision !== (this._readCacheRevision || 0) || key !== this._readUserKey()) return;
       listEl.innerHTML = `<div class="bk-empty"><div class="bk-empty-icon">${uiIcon('info')}</div><div class="bk-empty-title">${t('mybook.loadFail')}</div><div class="bk-empty-desc">${escHtml(e.message)}</div></div>`;
     }
   },
@@ -1707,8 +1801,10 @@ window.App = {
     try {
       await apiPost({ action: 'cancelBooking', bookingId, email: u.email });
       this.state.bookings = [];
+      this._allBookings = [];
+      this._invalidateReadCaches();
       showToast('success', t('toast.cancelOk'), '');
-      this._fetchAndRenderMyBookings();
+      await this._fetchAndRenderMyBookings();
     } catch (e) {
       showToast('error', t('toast.cancelFail'), e.message);
     }
@@ -1970,6 +2066,7 @@ window.App = {
 
   _applyBookingUpdate(booking) {
     this._bookingRevision++;
+    this._invalidateReadCaches();
     const update = rows => rows.map(row => String(row.BookingID) === String(booking.BookingID) ? booking : row);
     this._allBookings = update(this._allBookings);
     this.state.bookings = update(this.state.bookings);
@@ -2177,7 +2274,7 @@ function apiGet(func, params = {}) {
   const request = fetch(key)
     .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
     .then(d => { if (d && d.error) throw new Error(d.error); return d; })
-    .finally(() => pendingApiGets.delete(key));
+    .finally(() => { if (pendingApiGets.get(key) === request) pendingApiGets.delete(key); });
   pendingApiGets.set(key, request);
   return request;
 }

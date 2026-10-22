@@ -70,10 +70,11 @@ function doGet(e) {
   try {
     switch (p.func) {
       case "init":          return jsonOut(getInitData(p.refresh === "1"));
-      case "getMyBookings": return jsonOut(getMyBookings(p.email));
+      case "getMyBookings": return jsonOut(getMyBookings(p.email, p.refresh === "1"));
       case "getAllBookings": return jsonOut(getDisplayBookings_(p.refresh === "1"));
       case "getProfile":    return jsonOut(getProfile(p.email));
       case "getCalendar":   return jsonOut(getCalendar(p.from, p.to, p.refresh === "1"));
+      case "getAvailability": return jsonOut(getAvailability(p.itemId, p.from, p.to, p.refresh === "1"));
       default:              return jsonOut({ error: "Invalid function: " + (p.func || "(none)") });
     }
   } catch (err) {
@@ -93,6 +94,7 @@ function doPost(e) {
       case "approveBookings": return jsonOut(changeBookings_(data, false, true));
       case "rejectBookings":  return jsonOut(changeBookings_(data, true, true));
       case "saveProfile":    return jsonOut(saveProfile(data));
+      case "getNotifications": return jsonOut(getNotificationSummary(data));
       default:               return jsonOut({ error: "Invalid action: " + data.action });
     }
   } catch (err) {
@@ -174,9 +176,9 @@ function getStaffConfig() {
 
 
 // ==================== BOOKINGS ====================
-function getMyBookings(email) {
+function getMyBookings(email, refresh) {
   if (!email) return [];
-  return getDisplayBookings_(false).filter(function(b) {
+  return getDisplayBookings_(refresh).filter(function(b) {
     return String(b.Email || "").toLowerCase() === email.toLowerCase();
   });
 }
@@ -189,16 +191,66 @@ function getCalendar(from, to, refresh) {
   };
   if (!validDate(from) || !validDate(to) || to <= from
       || Date.parse(to) - Date.parse(from) > 42 * 86400000) throw new Error("Invalid calendar date range");
+  return { bookings: occupancyBookings_(from, to, refresh) };
+}
+
+function getAvailability(itemId, from, to, refresh) {
+  if (typeof itemId !== "string" || !itemId.trim()) throw new Error("Invalid availability item ID");
+  const validDate = function(value) {
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(value + "T00:00:00Z")) && BookingRules.addDays(value, 0) === value;
+  };
+  if (!validDate(from) || !validDate(to) || to <= from
+      || Date.parse(to) - Date.parse(from) > 181 * 86400000) throw new Error("Invalid availability date range");
+  return { bookings: occupancyBookings_(from, to, refresh, itemId) };
+}
+
+function occupancyBookings_(from, to, refresh, itemId) {
   const start = BookingRules.timestamp(from + "T00:00:00"), end = BookingRules.timestamp(to + "T00:00:00");
   const statuses = BookingRules.pending.concat(BookingRules.approved);
-  return { bookings: getDisplayBookings_(refresh).filter(function(booking) {
-    return statuses.includes(booking.Status) && BookingRules.timestamp(booking.Start) < end
+  return getDisplayBookings_(refresh).filter(function(booking) {
+    return (itemId === undefined || String(booking.ItemID) === itemId)
+      && statuses.includes(booking.Status) && BookingRules.timestamp(booking.Start) < end
       && BookingRules.timestamp(booking.End) > start;
   }).map(function(booking) {
     return { ItemID: String(booking.ItemID), Start: booking.Start, End: booking.End,
       Quantity: Number(booking.Quantity) > 0 ? Number(booking.Quantity) : 1,
       Status: BookingRules.approved.includes(booking.Status) ? STATUS.APPROVED : STATUS.P1 };
-  }) };
+  });
+}
+
+function getNotificationSummary(data) {
+  const actor = verifiedActor_(data), role = actor.role || "STUDENT";
+  const config = role === "STUDENT" ? {} : getStaffConfig();
+  if (role !== "STUDENT" && !BookingRules.rolesFor(actor.email, config).includes(role)) {
+    throw new Error("บทบาทนี้ไม่มีสิทธิ์ดูการแจ้งเตือน");
+  }
+  const bookings = getDisplayBookings_(false);
+  const readState = Object.create(null);
+  let relevant, count;
+  if (role === "STUDENT") {
+    const seen = data.seen && typeof data.seen === "object" && !Array.isArray(data.seen) ? data.seen : {};
+    const statuses = BookingRules.approved.concat(STATUS.REJECTED);
+    relevant = bookings.filter(function(booking) {
+      return String(booking.Email || "").toLowerCase().trim() === actor.email
+        && booking.BookingID && statuses.includes(booking.Status);
+    });
+    relevant.forEach(function(booking) { readState[booking.BookingID] = booking.Status; });
+    relevant = relevant.filter(function(booking) { return seen[booking.BookingID] !== booking.Status; });
+    count = relevant.length;
+  } else if (["ADVISORS", "HEAD_DEPT"].includes(role)) {
+    relevant = bookings.filter(function(booking) { return BookingRules.canApprove(booking, actor.email, role, config); });
+    count = relevant.length;
+  } else {
+    relevant = bookings.slice().reverse();
+    count = 0;
+  }
+  const items = relevant.slice(0, 10).map(function(booking) {
+    const item = { BookingID: booking.BookingID, ItemName: booking.ItemName || "", Status: booking.Status };
+    if (role !== "STUDENT") item.Name = booking.Name || "";
+    return item;
+  });
+  return { count: count, items: items, readState: readState };
 }
 
 function getAllBookings() {

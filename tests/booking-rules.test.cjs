@@ -170,6 +170,155 @@ test('calendar rejects invalid, reversed, missing and oversized date ranges', ()
   assert.equal(b.context.getCalendar('2026-10-01','2026-11-12').bookings.length,0);
 });
 
+test('availability returns only the requested equipment active overlaps without personal fields', () => {
+  const b = backend();
+  b.addBooking({Start:'2026-10-22T15:00:00',End:'2026-10-23T10:00:00',Name:'Private name',Note:'Private note'});
+  b.addBooking({BookingID:'spanning',Start:'2026-10-01T09:00:00',End:'2026-12-01T16:00:00',Quantity:3});
+  b.addBooking({BookingID:'legacy',Status:'รออนุมัติขั้นที่ 3',Quantity:''});
+  b.addBooking({BookingID:'other-equipment',ItemID:'glass'});
+  b.addBooking({BookingID:'rejected',Status:'ปฏิเสธ'});
+  b.addBooking({BookingID:'cancelled',Status:'ยกเลิก'});
+  b.addBooking({BookingID:'before',Start:'2026-10-22T09:00:00',End:'2026-10-23T00:00:00'});
+  b.addBooking({BookingID:'after',Start:'2026-10-24T00:00:00',End:'2026-10-24T12:00:00'});
+  b.context.jsonOut = data => data;
+  const data = b.context.doGet({parameter:{func:'getAvailability',itemId:'one',from:'2026-10-23',to:'2026-10-24'}});
+  assert.equal(data.bookings.length,3);
+  assert.equal(data.bookings[1].Quantity,3);
+  assert.equal(data.bookings[2].Quantity,1);
+  assert.equal(data.bookings[2].Status,'อนุมัติแล้ว');
+  for (const booking of data.bookings) {
+    assert.equal(booking.ItemID,'one');
+    assert.deepEqual(Object.keys(booking).sort(),['End','ItemID','Quantity','Start','Status']);
+  }
+  assert.doesNotMatch(JSON.stringify(data),/Private|@|BookingID|StudentID|AdvisorEmail/);
+  assert.equal(b.context.getAvailability('unknown','2026-10-23','2026-10-24').bookings.length,0);
+  assert.equal(b.metrics.initReads,0);
+});
+
+test('availability supports long bookings up to 181 days and rejects malformed filters before reading', () => {
+  const b = backend();
+  for (const itemId of [undefined,null,'',' \t ',1,[],{}]) {
+    assert.throws(()=>b.context.getAvailability(itemId,'2026-10-23','2026-10-24'),/Invalid availability item ID/);
+  }
+  for (const [from,to] of [[undefined,'2026-11-01'],['2026-02-30','2026-03-01'],['2026-10-23','2026-10-23'],['2026-10-24','2026-10-23'],['2026-10-23T09:00:00','2026-10-24'],[['2026-10-23'],'2026-10-24'],['2026-01-01',rules.addDays('2026-01-01',182)]]) {
+    assert.throws(()=>b.context.getAvailability('one',from,to),/Invalid availability date range/);
+  }
+  assert.equal(b.metrics.reads,0);
+  b.addBooking({Start:'2026-02-01T09:00:00',End:'2026-06-30T16:00:00'});
+  assert.equal(b.context.getAvailability('one','2026-01-01',rules.addDays('2026-01-01',181)).bookings.length,1);
+  assert.throws(()=>b.context.getCalendar('2026-01-01',rules.addDays('2026-01-01',181)),/Invalid calendar date range/);
+});
+
+test('availability shares display cache, refresh bypasses it, and a committed mutation invalidates it', () => {
+  const b = backend();b.addBooking({});
+  const read = refresh => b.context.getAvailability('one','2026-10-23','2026-10-24',refresh);
+  assert.equal(read(false).bookings[0].Quantity,1);
+  b.rows[1][8] = 3;
+  assert.equal(read(false).bookings[0].Quantity,1);
+  assert.equal(b.metrics.reads,1);
+  b.context.jsonOut = data => data;
+  const fresh = b.context.doGet({parameter:{func:'getAvailability',itemId:'one',from:'2026-10-23',to:'2026-10-24',refresh:'1'}});
+  assert.equal(fresh.bookings[0].Quantity,3);
+  assert.equal(b.metrics.reads,2);
+  b.context.cancelBooking({bookingId:'BK1',email:'student@kmitl.ac.th'});
+  assert.equal(read(false).bookings.length,0);
+  assert.deepEqual(b.lockCounts(),[1,1]);
+});
+
+test('my-bookings manual refresh bypasses display cache without changing default cached reads', () => {
+  const b = backend();b.addBooking({});
+  b.context.jsonOut = data => data;
+  const parameters = {func:'getMyBookings',email:'student@kmitl.ac.th'};
+  assert.equal(b.context.doGet({parameter:parameters})[0].Status,'รอที่ปรึกษาอนุมัติ');
+  b.rows[1][13] = 'อนุมัติแล้ว';
+  assert.equal(b.context.doGet({parameter:parameters})[0].Status,'รอที่ปรึกษาอนุมัติ');
+  assert.equal(b.metrics.reads,1);
+  assert.equal(b.context.doGet({parameter:{...parameters,refresh:'1'}})[0].Status,'อนุมัติแล้ว');
+  assert.equal(b.metrics.reads,2);
+  assert.equal(b.context.getMyBookings('student@kmitl.ac.th')[0].Status,'อนุมัติแล้ว');
+  assert.equal(b.metrics.reads,2);
+});
+
+test('student notification summaries use verified identity and preserve per-status unread state', () => {
+  const b = backend();
+  b.addBooking({BookingID:'legacy',Status:'รออนุมัติขั้นที่ 3',Name:'Private name',Note:'Private note'});
+  b.addBooking({BookingID:'seen',Status:'อนุมัติแล้ว'});
+  b.addBooking({BookingID:'changed',Status:'ปฏิเสธ'});
+  b.addBooking({BookingID:'pending'});
+  b.addBooking({BookingID:'cancelled',Status:'ยกเลิก'});
+  b.addBooking({BookingID:'other-student',Email:'other@kmitl.ac.th',Status:'อนุมัติแล้ว'});
+  b.context.jsonOut = data => data;
+  const payload = {action:'getNotifications',idToken:'student@kmitl.ac.th',email:'other@kmitl.ac.th',seen:{seen:'อนุมัติแล้ว',changed:'อนุมัติแล้ว'}};
+  const summary = b.context.doPost({postData:{contents:JSON.stringify(payload)}});
+  assert.equal(b.metrics.tokenChecks,1);
+  assert.equal(summary.count,2);
+  assert.deepEqual(Array.from(summary.items,row=>row.BookingID),['legacy','changed']);
+  assert.deepEqual(Object.keys(summary.readState).sort(),['changed','legacy','seen']);
+  assert.equal(summary.readState.legacy,'อนุมัติแล้ว');
+  for (const entry of summary.items) assert.deepEqual(Object.keys(entry).sort(),['BookingID','ItemName','Status']);
+  assert.doesNotMatch(JSON.stringify(summary),/Private|@|StudentID|AdvisorEmail|Note|other-student/);
+  const seen = summary.readState;
+  assert.equal(b.context.getNotificationSummary({...payload,seen}).count,0);
+  b.rows[1][13] = 'ปฏิเสธ';b.context.invalidateBookingCache_();
+  const changed = b.context.getNotificationSummary({...payload,seen});
+  assert.equal(changed.count,1);
+  assert.equal(changed.items[0].BookingID,'legacy');
+  assert.equal(changed.items[0].Status,'ปฏิเสธ');
+  assert.equal(b.metrics.writes,0);
+  assert.deepEqual(b.lockCounts(),[0,0]);
+});
+
+test('notification item limits do not truncate student counts or mark-all-read state', () => {
+  const b = backend();
+  for (let i=0;i<15;i++) b.addBooking({BookingID:'BK'+i,Status:'อนุมัติแล้ว'});
+  const result = b.context.getNotificationSummary({idToken:'student@kmitl.ac.th',activeRole:'STUDENT'});
+  assert.equal(result.count,15);
+  assert.equal(result.items.length,10);
+  assert.equal(Object.keys(result.readState).length,15);
+  assert.equal(b.context.getNotificationSummary({idToken:'student@kmitl.ac.th',seen:result.readState}).count,0);
+  assert.equal(b.metrics.reads,1);
+});
+
+test('approval notification summaries use fresh role membership and match only actionable rows', () => {
+  const b = backend();
+  for (let i=0;i<12;i++) b.addBooking({BookingID:'P1-'+i,ItemName:'UV-Vis',Name:'Booker'});
+  b.addBooking({BookingID:'other-advisor',AdvisorEmail:'other@kmitl.ac.th'});
+  b.addBooking({BookingID:'P2',Status:'รออนุมัติขั้นที่ 2'});
+  b.addBooking({BookingID:'approved',Status:'อนุมัติแล้ว'});
+  const advisor = b.context.getNotificationSummary({idToken:'dual@kmitl.ac.th',activeRole:'ADVISORS'});
+  assert.equal(advisor.count,12);
+  assert.equal(advisor.items.length,10);
+  assert.deepEqual(Object.keys(advisor.readState),[]);
+  for (const entry of advisor.items) assert.deepEqual(Object.keys(entry).sort(),['BookingID','ItemName','Name','Status']);
+  const head = b.context.getNotificationSummary({idToken:'dual@kmitl.ac.th',activeRole:'HEAD_DEPT'});
+  assert.equal(head.count,1);
+  assert.equal(head.items[0].BookingID,'P2');
+  assert.equal(b.metrics.reads,1);
+  assert.equal(b.metrics.tokenChecks,2);
+  b.config.ADVISORS = [];
+  assert.throws(()=>b.context.getNotificationSummary({idToken:'dual@kmitl.ac.th',activeRole:'ADVISORS'}),/ไม่มีสิทธิ์/);
+  assert.equal(b.metrics.writes,0);
+});
+
+test('verified staff get ten latest notifications without approval counts and forged roles are rejected', () => {
+  const b = backend();
+  for (let i=0;i<14;i++) b.addBooking({BookingID:'BK'+i});
+  for (const [idToken,activeRole] of [['staff@kmitl.ac.th','STAFF_FLOOR_1'],['tp2@kmitl.ac.th','STAFF_PROJECT_2'],['viewer@kmitl.ac.th','VIEWERS']]) {
+    const result = b.context.getNotificationSummary({idToken,activeRole});
+    assert.equal(result.count,0);
+    assert.equal(result.items.length,10);
+    assert.equal(result.items[0].BookingID,'BK13');
+    assert.equal(result.items[9].BookingID,'BK4');
+    assert.deepEqual(Object.keys(result.readState),[]);
+  }
+  for (const data of [{idToken:'student@kmitl.ac.th',email:'dual@kmitl.ac.th',activeRole:'ADVISORS'},{idToken:'staff@kmitl.ac.th',activeRole:'HEAD_DEPT'},{idToken:'dual@kmitl.ac.th',activeRole:'UNKNOWN'},{idToken:'invalid',activeRole:'STUDENT'},{}]) {
+    assert.throws(()=>b.context.getNotificationSummary(data));
+  }
+  assert.equal(b.metrics.reads,1);
+  assert.equal(b.metrics.writes,0);
+  assert.deepEqual(b.lockCounts(),[0,0]);
+});
+
 test('backend validates canonical inventory and rejects forged schedules, lead-time and oversubscription', () => {
   const b = backend();
   const data = {itemId:'one',start:minStart,end:'2026-10-23T12:00:00',quantity:1,advisorEmail:'dual@kmitl.ac.th',studentId:'66010380'};
